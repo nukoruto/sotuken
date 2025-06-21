@@ -23,6 +23,7 @@ fs.writeFileSync(LOG_FILE, 'timestamp,user_id,endpoint,use_case,type,jwt,label\n
 
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -90,7 +91,7 @@ const scenarios = [invalidTokenSequence, noTokenSequence, reversedSequence];
   console.log(`▶ 異常系列 ${total} 本 生成開始`);
 
   for (let i = 0; i < total; i++) {
-    const scen = scenarios[i % scenarios.length];
+    const scen = rand(scenarios);
     await scen(`abuser${i + 1}`);
     await sleep(delay);
   }
