@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const bodyParser = require('body-parser');
+const { extractPayload } = require('./jwt_helper');
 
 const SECRET   = 'change_this_to_env_secret'; // 本運用では環境変数へ
 const PORT     = 3000;
@@ -72,7 +73,8 @@ function auth(req, res, next) {
   const token = authHeader.split(' ')[1];
   jwt.verify(token, SECRET, (err, decoded) => {
     if (err) {
-      writeLog({ endpoint: req.path, token, label: 'invalid_token' });
+      const payload = extractPayload(token) || 'invalid';
+      writeLog({ endpoint: req.path, payload, label: 'invalid_token' });
       return res.status(403).json({ error: 'Invalid token' });
     }
     req.user  = decoded;  // { user_id }
@@ -86,8 +88,8 @@ function auth(req, res, next) {
 app.post('/login', (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-  const payload = { user_id, iat: Date.now() };  writeLog({ userId: user_id, endpoint: '/login', token, label: 'normal' });
-  const token = jwt.sign(payload, SECRET, { expiresIn: '1h' });
+  const payload = { user_id, iat: Date.now() };// 差別化
+  const token   = jwt.sign(payload, SECRET, { expiresIn: '1h' });// token を渡さず payload だけ
   writeLog({ userId: user_id, endpoint: '/login', payload, label: 'normal' });
   res.json({ token });
 });

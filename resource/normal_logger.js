@@ -26,10 +26,25 @@ fs.writeFileSync(LOG_FILE, 'timestamp,user_id,endpoint,use_case,type,jwt,label\n
 // ── 共通ユーティリティ ────────────────────────
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+function extractPayload(token) {
+  try {
+    const payloadPart = token.split('.')[1];
+    const json = Buffer.from(payloadPart, 'base64url').toString();
+    return JSON.stringify(JSON.parse(json));
+  } catch (_) {
+    return 'invalid';
+  }
+}
 function logRow({ ts, userId, endpoint, token = 'none', label }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
   const line = [
-    ts, userId, endpoint, use_case, type, token, label
+    ts,
+    userId,
+    endpoint,
+    use_case,
+    type,
+    extractPayload(token),
+    label
   ].join(',') + '\n';
   fs.appendFileSync(LOG_FILE, line);
 }
