@@ -26,6 +26,7 @@ fs.writeFileSync(LOG_FILE, 'timestamp,user_id,endpoint,use_case,type,jwt,label\n
 // ── 共通ユーティリティ ────────────────────────
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -58,15 +59,21 @@ async function normalSequence(userId) {
   logRow({ ts: t0, userId, endpoint: '/login', token, label: 'normal' });
   const auth = { headers: { Authorization: `Bearer ${token}` } };
 
-  // 2. browse
-  const t1 = new Date().toISOString();
-  await api.get('/browse', auth);
-  logRow({ ts: t1, userId, endpoint: '/browse', token, label: 'normal' });
+  // 2. browse を 1~3 回ランダム実行
+  const browseCount = randInt(1, 3);
+  for (let i = 0; i < browseCount; i++) {
+    const t = new Date().toISOString();
+    await api.get('/browse', auth);
+    logRow({ ts: t, userId, endpoint: '/browse', token, label: 'normal' });
+  }
 
-  // 3. edit
-  const t2 = new Date().toISOString();
-  await api.post('/edit', {}, auth);
-  logRow({ ts: t2, userId, endpoint: '/edit', token, label: 'normal' });
+  // 3. edit を 0~2 回ランダム実行
+  const editCount = randInt(0, 2);
+  for (let i = 0; i < editCount; i++) {
+    const t = new Date().toISOString();
+    await api.post('/edit', {}, auth);
+    logRow({ ts: t, userId, endpoint: '/edit', token, label: 'normal' });
+  }
 
   // 4. logout
   const t3 = new Date().toISOString();
