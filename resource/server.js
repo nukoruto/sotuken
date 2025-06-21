@@ -34,14 +34,16 @@ app.use(bodyParser.json());
 if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
 if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(
   LOG_FILE,
-  'timestamp,user_id,endpoint,use_case,type,jwt,label\n',
+  'timestamp,user_id,endpoint,use_case,type,jwt_payload,label\n',
   'utf8'
 );
+
+const stringify = obj => JSON.stringify(obj).replace(/,/g, ';'); // CSV用にカンマ潰し
 
 function writeLog({
   userId = 'unknown',
   endpoint,
-  token = 'none',
+  payload = 'none',
   label = 'unknown'
 }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
@@ -51,7 +53,7 @@ function writeLog({
     endpoint,
     use_case,
     type,
-    token || 'none',
+    typeof payload === 'object' ? stringify(payload) : payload,
     label
   ].join(',') + '\n';
 
@@ -84,9 +86,9 @@ function auth(req, res, next) {
 app.post('/login', (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-
-  const token = jwt.sign({ user_id }, SECRET, { expiresIn: '1h' });
-  writeLog({ userId: user_id, endpoint: '/login', token, label: 'normal' });
+  const payload = { user_id, iat: Date.now() };  writeLog({ userId: user_id, endpoint: '/login', token, label: 'normal' });
+  const token = jwt.sign(payload, SECRET, { expiresIn: '1h' });
+  writeLog({ userId: user_id, endpoint: '/login', payload, label: 'normal' });
   res.json({ token });
 });
 
@@ -95,7 +97,7 @@ app.get('/browse', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/browse',
-    token: req.token,
+    payload: req.user,
     label: 'normal'
   });
   res.json({ message: `Welcome, ${req.user.user_id}!` });
@@ -106,7 +108,7 @@ app.post('/edit', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/edit',
-    token: req.token,
+    payload: req.user,
     label: 'normal'
   });
   res.json({ message: 'Edit completed (dummy).' });
@@ -117,7 +119,7 @@ app.post('/logout', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/logout',
-    token: req.token,
+    payload: req.user,
     label: 'normal'
   });
   res.json({ message: 'Logged out.' });
