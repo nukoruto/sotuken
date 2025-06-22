@@ -41,6 +41,7 @@ const DEFAULT_DELAY = 100;
     `異常 delay (ms)? (default ${DEFAULT_DELAY}): `,
     DEFAULT_DELAY
   );
+
   rl.close();
 
   setTimeout(() => {
@@ -49,6 +50,7 @@ const DEFAULT_DELAY = 100;
       path.join('resource', 'normal_logger.js'),
       String(normalTotal),
       String(normalDelay)
+
     ];
     spawnSync('node', normalArgs, { stdio: 'inherit' });
 
@@ -57,6 +59,7 @@ const DEFAULT_DELAY = 100;
       path.join('resource', 'abnormal_logger.js'),
       String(abnormalTotal),
       String(abnormalDelay)
+
     ];
     spawnSync('node', abnormalArgs, { stdio: 'inherit' });
 
