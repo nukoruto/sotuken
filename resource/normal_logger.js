@@ -23,7 +23,7 @@ const MAP = {
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
 fs.writeFileSync(
   LOG_FILE,
-  'timestamp,user_id,now_id,endpoint,use_case,type,ip,jwt,label\n'
+  'timestamp,user_id,now_id,endpoint,use_case,type,ip,jwt_payload,label\n'
 );
 
 // ── 共通ユーティリティ ────────────────────────
@@ -37,7 +37,8 @@ function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
     const json = Buffer.from(payloadPart, 'base64url').toString();
-    return JSON.stringify(JSON.parse(json));
+    const obj  = JSON.parse(json);
+    return Buffer.from(JSON.stringify(obj)).toString('base64url');
   } catch (_) {
     return 'invalid';
   }
