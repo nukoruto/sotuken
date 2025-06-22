@@ -118,28 +118,37 @@ async function reversedSequence(userId) {
   logRow({ ts: ts2, userId: getIssuer(token), nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
 }
 
-// 4) セッション流用（別IPから同一JWTを使用）
-async function sessionReuseSequence(nowId) {
-  const issuerId = `victim_for_${nowId}`;
-  const ip1 = randomIP();
-  const { data } = await api.post('/login', { user_id: issuerId }, {
-    headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT }
-  });
-  const token = data.token;
-  registerToken(token, issuerId);
-  // 同一トークンを別IPから利用
-  const ip2 = randomIP();
+// 4) 発行者と利用者が異なるトークン流用
+async function tokenReuseSequence(nowId) {
+  // 既に取得済みのトークンから自分以外の発行分を選択
+  let candidates = Array.from(tokenMap.entries()).filter(([, uid]) => uid !== nowId);
+  let token, issuerId;
+
+  if (candidates.length === 0) {
+    // なければ新たに被害者用トークンを発行
+    issuerId = `victim_for_${nowId}`;
+    const ip = randomIP();
+    const { data } = await api.post('/login', { user_id: issuerId }, {
+      headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+    });
+    token = data.token;
+    registerToken(token, issuerId);
+  } else {
+    [token, issuerId] = rand(candidates);
+  }
+
+  const ip = randomIP();
   const t = new Date().toISOString();
   try {
     await api.get('/browse', {
       headers: {
         Authorization: `Bearer ${token}`,
-        'X-Forwarded-For': ip2,
+        'X-Forwarded-For': ip,
         'User-Agent': USER_AGENT
       }
     });
   } catch (_) {}
-  logRow({ ts: t, userId: getIssuer(token), nowId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
+  logRow({ ts: t, userId: issuerId, nowId, endpoint: '/browse', ip, token, label: 'token_reuse' });
 }
 
 // 5) ログアウト後に同一トークンを再利用
@@ -190,10 +199,9 @@ const scenarios = [
   invalidTokenSequence,
   noTokenSequence,
   reversedSequence,
-  sessionReuseSequence,
+  tokenReuseSequence,
   reuseAfterLogoutSequence,
-  expiredTokenSequence,
-  sessionReuseSequence
+  expiredTokenSequence
 ];
 
 // ── メイン ───────────────────────────────────
