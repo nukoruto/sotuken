@@ -16,7 +16,8 @@ const { extractPayload } = require('./jwt_helper');
 const SECRET   = 'change_this_to_env_secret'; // 本運用では環境変数へ
 const PORT     = 3000;
 const LOG_DIR  = path.join(__dirname, 'logs');
-const LOG_FILE = path.join(LOG_DIR, 'operation_log.csv');
+// 各リクエストの詳細ログは request_log.csv に保存
+const REQUEST_LOG = path.join(LOG_DIR, 'request_log.csv');
 
 // ── 1. 抽象化マッピングテーブル ─────────────────────────
 //   endpoint        → use_case (レイヤ2) → type (レイヤ3)
@@ -35,8 +36,8 @@ const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
 
 // ── 2. ログファイル準備 ───────────────────────────────
 if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
-if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(
-  LOG_FILE,
+if (!fs.existsSync(REQUEST_LOG)) fs.writeFileSync(
+  REQUEST_LOG,
   'timestamp,user_id,endpoint,use_case,type,ip,jwt_payload,label\n',
   'utf8'
 );
@@ -63,7 +64,7 @@ function writeLog({
     label
   ].join(',') + '\n';
 
-  fs.appendFile(LOG_FILE, line, err => {
+  fs.appendFile(REQUEST_LOG, line, err => {
     if (err) console.error('Log write error:', err);
   });
 }

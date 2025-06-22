@@ -9,6 +9,7 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const updateOperationLog = require('./update_operation_log');
 const LOG_FILE = path.join(__dirname, 'logs', 'normal_log.csv');
 
 // ── マッピング（endpoint → use_case/type） ──────────────
@@ -235,4 +236,5 @@ async function normalSequence(userId) {
     await sleep(delay);
   }
   console.log(`完了：logs/normal_log.csv に保存済`);
+  updateOperationLog();
 })();
