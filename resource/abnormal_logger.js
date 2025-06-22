@@ -187,7 +187,8 @@ const scenarios = [
   reversedSequence,
   sessionReuseSequence,
   reuseAfterLogoutSequence,
-  expiredTokenSequence
+  expiredTokenSequence,
+  sessionReuseSequence
 ];
 
 // ── メイン ───────────────────────────────────
