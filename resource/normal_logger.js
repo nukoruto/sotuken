@@ -59,44 +59,168 @@ function logRow({ ts, userId, nowId, endpoint, ip, token = 'none', label }) {
   fs.appendFileSync(LOG_FILE, line);
 }
 
-// ── 正常系列定義 ──────────────────────────────
-async function normalSequence(userId) {
-  const ip = randomIP();
-  // 1. login
-  const t0 = new Date().toISOString();
+// ── 基本操作 ──────────────────────────────────
+async function stepLogin(userId, ip) {
+  const ts = new Date().toISOString();
   const { data } = await api.post('/login', { user_id: userId }, {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
   });
   const token = data.token;
-  logRow({ ts: t0, userId, nowId: userId, endpoint: '/login', ip, token, label: 'normal' });
-  const auth = {
+  logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token, label: 'normal' });
+  return { token, auth: {
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Forwarded-For': ip,
       'User-Agent': USER_AGENT
     }
-  };
+  }};
+}
 
-  // 2. browse を 1~3 回ランダム実行
-  const browseCount = randInt(1, 3);
-  for (let i = 0; i < browseCount; i++) {
-    const t = new Date().toISOString();
-    await api.get('/browse', auth);
-    logRow({ ts: t, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
-  }
+async function stepBrowse(userId, ip, token, auth) {
+  const ts = new Date().toISOString();
+  await api.get('/browse', auth);
+  logRow({ ts, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
+}
 
-  // 3. edit を 0~2 回ランダム実行
-  const editCount = randInt(0, 2);
-  for (let i = 0; i < editCount; i++) {
-    const t = new Date().toISOString();
-    await api.post('/edit', {}, auth);
-    logRow({ ts: t, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'normal' });
-  }
+async function stepEdit(userId, ip, token, auth) {
+  const ts = new Date().toISOString();
+  await api.post('/edit', {}, auth);
+  logRow({ ts, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'normal' });
+}
 
-  // 4. logout
-  const t3 = new Date().toISOString();
+async function stepLogout(userId, ip, token, auth) {
+  const ts = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: t3, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+  logRow({ ts, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+}
+
+// ── 各ユースケース定義 ──────────────────────────
+async function ucA2(userId) {                 // Login → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucA1(userId) {                 // Login のみ
+  const ip = randomIP();
+  await stepLogin(userId, ip);
+}
+
+async function ucR4(userId) {                 // Login → Browse×n → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  const count = randInt(2, 4);
+  for (let i = 0; i < count; i++) await stepBrowse(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucR3(userId) {                 // Login → Browse → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepBrowse(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucR1R2(userId) {               // Login → Browse(複数) → (no logout)
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  const count = randInt(1, 3);
+  for (let i = 0; i < count; i++) await stepBrowse(userId, ip, token, auth);
+}
+
+async function ucU2(userId) {                 // Login → Edit → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepEdit(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucU5(userId) {                 // Login → Browse → Edit → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepBrowse(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucU1U3(userId) {               // Login → Edit(複数)
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  const count = randInt(1, 3);
+  for (let i = 0; i < count; i++) await stepEdit(userId, ip, token, auth);
+}
+
+async function ucM1(userId) {                 // Login → Browse → Edit → Browse → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepBrowse(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+  await stepBrowse(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucM3(userId) {                 // Login → Browse → Edit → Edit → Browse → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepBrowse(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+  await stepBrowse(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucM2(userId) {                 // Login → Edit → Browse → Edit → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepEdit(userId, ip, token, auth);
+  await stepBrowse(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+  await stepLogout(userId, ip, token, auth);
+}
+
+async function ucO1(userId) {                 // Login → Browse → Edit (no logout)
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepBrowse(userId, ip, token, auth);
+  await stepEdit(userId, ip, token, auth);
+}
+
+async function ucO2O3(userId) {               // Login → Browse (no logout)
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  const count = randInt(1, 3);
+  for (let i = 0; i < count; i++) await stepBrowse(userId, ip, token, auth);
+}
+
+const scenarios = [
+  { weight: 5, run: ucA2 },
+  { weight: 3, run: ucA1 },
+  { weight: 5, run: ucR4 },
+  { weight: 4, run: ucR3 },
+  { weight: 2, run: ucR1R2 },
+  { weight: 4, run: ucU2 },
+  { weight: 3, run: ucU5 },
+  { weight: 2, run: ucU1U3 },
+  { weight: 5, run: ucM1 },
+  { weight: 3, run: ucM3 },
+  { weight: 2, run: ucM2 },
+  { weight: 3, run: ucO1 },
+  { weight: 2, run: ucO2O3 }
+];
+
+function pickScenario() {
+  const total = scenarios.reduce((s, c) => s + c.weight, 0);
+  let r = Math.random() * total;
+  for (const scen of scenarios) {
+    if (r < scen.weight) return scen.run;
+    r -= scen.weight;
+  }
+  return scenarios[0].run;
+}
+
+async function normalSequence(userId) {
+  const run = pickScenario();
+  await run(userId);
 }
 
 // ── メイン ───────────────────────────────────
