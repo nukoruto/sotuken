@@ -23,7 +23,7 @@ const MAP = {
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
 fs.writeFileSync(
   LOG_FILE,
-  'timestamp,user_id,endpoint,use_case,type,ip,jwt,label\n'
+  'timestamp,user_id,now_id,endpoint,use_case,type,ip,jwt,label\n'
 );
 
 // ── 共通ユーティリティ ────────────────────────
@@ -42,11 +42,12 @@ function extractPayload(token) {
     return 'invalid';
   }
 }
-function logRow({ ts, userId, endpoint, ip, token = 'none', label }) {
+function logRow({ ts, userId, nowId, endpoint, ip, token = 'none', label }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
   const line = [
     ts,
     userId,
+    nowId,
     endpoint,
     use_case,
     type,
@@ -66,7 +67,7 @@ async function normalSequence(userId) {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
   });
   const token = data.token;
-  logRow({ ts: t0, userId, endpoint: '/login', ip, token, label: 'normal' });
+  logRow({ ts: t0, userId, nowId: userId, endpoint: '/login', ip, token, label: 'normal' });
   const auth = {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -80,7 +81,7 @@ async function normalSequence(userId) {
   for (let i = 0; i < browseCount; i++) {
     const t = new Date().toISOString();
     await api.get('/browse', auth);
-    logRow({ ts: t, userId, endpoint: '/browse', ip, token, label: 'normal' });
+    logRow({ ts: t, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
   }
 
   // 3. edit を 0~2 回ランダム実行
@@ -88,13 +89,13 @@ async function normalSequence(userId) {
   for (let i = 0; i < editCount; i++) {
     const t = new Date().toISOString();
     await api.post('/edit', {}, auth);
-    logRow({ ts: t, userId, endpoint: '/edit', ip, token, label: 'normal' });
+    logRow({ ts: t, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'normal' });
   }
 
   // 4. logout
   const t3 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: t3, userId, endpoint: '/logout', ip, token, label: 'normal' });
+  logRow({ ts: t3, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
 }
 
 // ── メイン ───────────────────────────────────

@@ -9,6 +9,8 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const SECRET = 'change_this_to_env_secret';
 const LOG_FILE = path.join(__dirname, 'logs', 'abnormal_log.csv');
 
 const MAP = {
@@ -19,10 +21,10 @@ const MAP = {
 };
 
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
-fs.writeFileSync(
-  LOG_FILE,
-  'timestamp,user_id,endpoint,use_case,type,ip,jwt,label\n'
-);
+  fs.writeFileSync(
+    LOG_FILE,
+    'timestamp,user_id,now_id,endpoint,use_case,type,ip,jwt,label\n'
+  );
 
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
@@ -39,13 +41,14 @@ function extractPayload(token) {
     return 'invalid';
   }
 }
-function logRow({ ts, userId, endpoint, ip, token = 'none', label }) {
+function logRow({ ts, userId, nowId, endpoint, ip, token = 'none', label }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
   fs.appendFileSync(
     LOG_FILE,
     [
       ts,
       userId,
+      nowId,
       endpoint,
       use_case,
       type,
@@ -73,15 +76,15 @@ async function invalidTokenSequence(userId) {
   };
   const ts = new Date().toISOString();
   try { await api.get('/browse', auth); } catch (_) {}
-  logRow({ ts, userId: 'unknown', endpoint: '/browse', ip, token: badToken, label: 'invalid_token' });
+  logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/browse', ip, token: badToken, label: 'invalid_token' });
 }
 
 // 2) JWTなしアクセス
-async function noTokenSequence() {
+async function noTokenSequence(userId = 'unknown') {
   const ip = randomIP();
   const ts = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
-  logRow({ ts, userId: 'unknown', endpoint: '/edit', ip, token: 'none', label: 'no_token' });
+  logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
 }
 
 // 3) 順序異常 (edit → login → logout)
@@ -89,7 +92,7 @@ async function reversedSequence(userId) {
   const ip = randomIP();
   const ts1 = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
-  logRow({ ts: ts1, userId: 'unknown', endpoint: '/edit', ip, token: 'none', label: 'no_token' });
+  logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
 
   const { data } = await api.post('/login', { user_id: userId }, {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
@@ -104,11 +107,81 @@ async function reversedSequence(userId) {
   };
   const ts2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: ts2, userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
+  logRow({ ts: ts2, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
+}
+
+// 4) セッション流用（別IPから同一JWTを使用）
+async function sessionReuseSequence(nowId) {
+  const issuerId = `victim_for_${nowId}`;
+  const ip1 = randomIP();
+  const { data } = await api.post('/login', { user_id: issuerId }, {
+    headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT }
+  });
+  const token = data.token;
+  // 同一トークンを別IPから利用
+  const ip2 = randomIP();
+  const t = new Date().toISOString();
+  try {
+    await api.get('/browse', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Forwarded-For': ip2,
+        'User-Agent': USER_AGENT
+      }
+    });
+  } catch (_) {}
+  logRow({ ts: t, userId: issuerId, nowId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
+}
+
+// 5) ログアウト後に同一トークンを再利用
+async function reuseAfterLogoutSequence(userId) {
+  const ip = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+  });
+  const token = data.token;
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
+  const t1 = new Date().toISOString();
+  await api.post('/logout', {}, auth);
+  logRow({ ts: t1, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+
+  const t2 = new Date().toISOString();
+  try { await api.get('/browse', auth); } catch (_) {}
+  logRow({ ts: t2, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'reuse_after_logout' });
+}
+
+// 6) 有効期限切れトークンの使用
+async function expiredTokenSequence(userId) {
+  const ip = randomIP();
+  const token = jwt.sign({ user_id: userId }, SECRET, { expiresIn: '1s' });
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
+  await sleep(1500);
+  const t = new Date().toISOString();
+  try { await api.get('/browse', auth); } catch (_) {}
+  logRow({ ts: t, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'expired_token' });
 }
 
 // 全異常パターンを配列で管理
-const scenarios = [invalidTokenSequence, noTokenSequence, reversedSequence];
+const scenarios = [
+  invalidTokenSequence,
+  noTokenSequence,
+  reversedSequence,
+  sessionReuseSequence,
+  reuseAfterLogoutSequence,
+  expiredTokenSequence
+];
 
 // ── メイン ───────────────────────────────────
 (async () => {
