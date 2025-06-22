@@ -32,6 +32,11 @@ const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randomIP = () => Array.from({ length: 4 }, () => randInt(1, 254)).join('.');
 const USER_AGENT = 'abnormal-logger';
+// token と発行者(user_id)の対応表
+const tokenMap = new Map();
+
+const registerToken = (token, userId) => tokenMap.set(token, userId);
+const getIssuer = token => tokenMap.get(token) || 'unknown';
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -66,6 +71,8 @@ async function invalidTokenSequence(userId) {
   const { data } = await api.post('/login', { user_id: userId }, {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
   });
+  // 発行された正規トークンを記録
+  registerToken(data.token, userId);
   const badToken = data.token.slice(0, -1) + 'x';
   const auth = {
     headers: {
@@ -76,7 +83,7 @@ async function invalidTokenSequence(userId) {
   };
   const ts = new Date().toISOString();
   try { await api.get('/browse', auth); } catch (_) {}
-  logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/browse', ip, token: badToken, label: 'invalid_token' });
+  logRow({ ts, userId: getIssuer(badToken), nowId: userId, endpoint: '/browse', ip, token: badToken, label: 'invalid_token' });
 }
 
 // 2) JWTなしアクセス
@@ -98,6 +105,7 @@ async function reversedSequence(userId) {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
   });
   const token = data.token;
+  registerToken(token, userId);
   const auth = {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -107,7 +115,7 @@ async function reversedSequence(userId) {
   };
   const ts2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: ts2, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
+  logRow({ ts: ts2, userId: getIssuer(token), nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
 }
 
 // 4) セッション流用（別IPから同一JWTを使用）
@@ -118,6 +126,7 @@ async function sessionReuseSequence(nowId) {
     headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT }
   });
   const token = data.token;
+  registerToken(token, issuerId);
   // 同一トークンを別IPから利用
   const ip2 = randomIP();
   const t = new Date().toISOString();
@@ -130,7 +139,7 @@ async function sessionReuseSequence(nowId) {
       }
     });
   } catch (_) {}
-  logRow({ ts: t, userId: issuerId, nowId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
+  logRow({ ts: t, userId: getIssuer(token), nowId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
 }
 
 // 5) ログアウト後に同一トークンを再利用
@@ -140,6 +149,7 @@ async function reuseAfterLogoutSequence(userId) {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
   });
   const token = data.token;
+  registerToken(token, userId);
   const auth = {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -149,17 +159,18 @@ async function reuseAfterLogoutSequence(userId) {
   };
   const t1 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: t1, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+  logRow({ ts: t1, userId: getIssuer(token), nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
 
   const t2 = new Date().toISOString();
   try { await api.get('/browse', auth); } catch (_) {}
-  logRow({ ts: t2, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'reuse_after_logout' });
+  logRow({ ts: t2, userId: getIssuer(token), nowId: userId, endpoint: '/browse', ip, token, label: 'reuse_after_logout' });
 }
 
 // 6) 有効期限切れトークンの使用
 async function expiredTokenSequence(userId) {
   const ip = randomIP();
   const token = jwt.sign({ user_id: userId }, SECRET, { expiresIn: '1s' });
+  registerToken(token, userId);
   const auth = {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -170,7 +181,7 @@ async function expiredTokenSequence(userId) {
   await sleep(1500);
   const t = new Date().toISOString();
   try { await api.get('/browse', auth); } catch (_) {}
-  logRow({ ts: t, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'expired_token' });
+  logRow({ ts: t, userId: getIssuer(token), nowId: userId, endpoint: '/browse', ip, token, label: 'expired_token' });
 }
 
 
