@@ -9,6 +9,8 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
+const SECRET = 'change_this_to_env_secret';
 const LOG_FILE = path.join(__dirname, 'logs', 'abnormal_log.csv');
 
 const MAP = {
@@ -107,8 +109,86 @@ async function reversedSequence(userId) {
   logRow({ ts: ts2, userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
 }
 
+// 4) セッション流用（別IPから同一JWTを使用）
+async function sessionReuseSequence(userId) {
+  // login 時の IP
+  const ip1 = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT }
+  });
+  const token = data.token;
+  const auth = token => ({
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'User-Agent': USER_AGENT
+    }
+  });
+
+  // 同一トークンを別IPから利用
+  const ip2 = randomIP();
+  const t = new Date().toISOString();
+  try {
+    await api.get('/browse', {
+      ...auth(token),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Forwarded-For': ip2,
+        'User-Agent': USER_AGENT
+      }
+    });
+  } catch (_) {}
+  logRow({ ts: t, userId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
+}
+
+// 5) ログアウト後に同一トークンを再利用
+async function reuseAfterLogoutSequence(userId) {
+  const ip = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+  });
+  const token = data.token;
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
+  const t1 = new Date().toISOString();
+  await api.post('/logout', {}, auth);
+  logRow({ ts: t1, userId, endpoint: '/logout', ip, token, label: 'normal' });
+
+  const t2 = new Date().toISOString();
+  try { await api.get('/browse', auth); } catch (_) {}
+  logRow({ ts: t2, userId, endpoint: '/browse', ip, token, label: 'reuse_after_logout' });
+}
+
+// 6) 有効期限切れトークンの使用
+async function expiredTokenSequence(userId) {
+  const ip = randomIP();
+  const token = jwt.sign({ user_id: userId }, SECRET, { expiresIn: '1s' });
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
+  await sleep(1500);
+  const t = new Date().toISOString();
+  try { await api.get('/browse', auth); } catch (_) {}
+  logRow({ ts: t, userId, endpoint: '/browse', ip, token, label: 'expired_token' });
+}
+
 // 全異常パターンを配列で管理
-const scenarios = [invalidTokenSequence, noTokenSequence, reversedSequence];
+const scenarios = [
+  invalidTokenSequence,
+  noTokenSequence,
+  reversedSequence,
+  sessionReuseSequence,
+  reuseAfterLogoutSequence,
+  expiredTokenSequence
+];
 
 // ── メイン ───────────────────────────────────
 (async () => {
