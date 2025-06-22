@@ -37,7 +37,7 @@ const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
 if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
 if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(
   LOG_FILE,
-  'timestamp,user_id,endpoint,use_case,type,ip,user_agent,jwt_payload,label\n',
+  'timestamp,user_id,endpoint,use_case,type,ip,jwt_payload,label\n',
   'utf8'
 );
 
@@ -48,7 +48,6 @@ function writeLog({
   userId = 'unknown',
   endpoint,
   ip = 'unknown',
-  userAgent = 'unknown',
   payload = 'none',
   label = 'unknown'
 }) {
@@ -60,7 +59,6 @@ function writeLog({
     use_case,
     type,
     ip,
-    userAgent.replace(/,/g, ';'),
     typeof payload === 'object' ? encodePayload(payload) : payload,
     label
   ].join(',') + '\n';
@@ -77,7 +75,6 @@ function auth(req, res, next) {
     writeLog({
       endpoint: req.path,
       ip: getClientIP(req),
-      userAgent: req.headers['user-agent'] || '',
       label: 'no_token'
     });
     return res.status(401).json({ error: 'No token supplied' });
@@ -89,7 +86,6 @@ function auth(req, res, next) {
       writeLog({
         endpoint: req.path,
         ip: getClientIP(req),
-        userAgent: req.headers['user-agent'] || '',
         payload,
         label: 'invalid_token'
       });
@@ -112,7 +108,6 @@ app.post('/login', (req, res) => {
     userId: user_id,
     endpoint: '/login',
     ip: getClientIP(req),
-    userAgent: req.headers['user-agent'] || '',
     payload,
     label: 'normal'
   });
@@ -125,7 +120,6 @@ app.get('/browse', auth, (req, res) => {
     userId: req.user.user_id,
     endpoint: '/browse',
     ip: getClientIP(req),
-    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
@@ -138,7 +132,6 @@ app.post('/edit', auth, (req, res) => {
     userId: req.user.user_id,
     endpoint: '/edit',
     ip: getClientIP(req),
-    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
@@ -151,7 +144,6 @@ app.post('/logout', auth, (req, res) => {
     userId: req.user.user_id,
     endpoint: '/logout',
     ip: getClientIP(req),
-    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
