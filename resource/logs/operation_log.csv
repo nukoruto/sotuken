@@ -1,4 +1,4 @@
-timestamp,user_id,endpoint,use_case,type,jwt_payload,label
+timestamp,user_id,endpoint,use_case,type,ip,user_agent,jwt_payload,label
 2025-06-21T15:12:01.826Z,user001,/login,Login,AUTH,{"user_id":"user001";"iat":1750518721823},normal
 2025-06-21T15:12:01.839Z,user001,/browse,ViewPage,READ,{"user_id":"user001";"iat":1750518721823;"exp":1750518725423},normal
 2025-06-21T15:12:01.844Z,user001,/edit,EditContent,UPDATE,{"user_id":"user001";"iat":1750518721823;"exp":1750518725423},normal

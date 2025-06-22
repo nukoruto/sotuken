@@ -21,12 +21,18 @@ const MAP = {
 
 // ── CSV 初期化 ────────────────────────────────
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
-fs.writeFileSync(LOG_FILE, 'timestamp,user_id,endpoint,use_case,type,jwt,label\n');
+fs.writeFileSync(
+  LOG_FILE,
+  'timestamp,user_id,endpoint,use_case,type,ip,user_agent,jwt,label\n'
+);
 
 // ── 共通ユーティリティ ────────────────────────
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randomIP = () =>
+  Array.from({ length: 4 }, () => randInt(1, 254)).join('.');
+const USER_AGENT = 'normal-logger';
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -36,7 +42,7 @@ function extractPayload(token) {
     return 'invalid';
   }
 }
-function logRow({ ts, userId, endpoint, token = 'none', label }) {
+function logRow({ ts, userId, endpoint, ip, userAgent, token = 'none', label }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
   const line = [
     ts,
@@ -44,6 +50,8 @@ function logRow({ ts, userId, endpoint, token = 'none', label }) {
     endpoint,
     use_case,
     type,
+    ip,
+    userAgent,
     extractPayload(token),
     label
   ].join(',') + '\n';
@@ -52,19 +60,28 @@ function logRow({ ts, userId, endpoint, token = 'none', label }) {
 
 // ── 正常系列定義 ──────────────────────────────
 async function normalSequence(userId) {
+  const ip = randomIP();
   // 1. login
   const t0 = new Date().toISOString();
-  const { data } = await api.post('/login', { user_id: userId });
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+  });
   const token = data.token;
-  logRow({ ts: t0, userId, endpoint: '/login', token, label: 'normal' });
-  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  logRow({ ts: t0, userId, endpoint: '/login', ip, userAgent: USER_AGENT, token, label: 'normal' });
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
 
   // 2. browse を 1~3 回ランダム実行
   const browseCount = randInt(1, 3);
   for (let i = 0; i < browseCount; i++) {
     const t = new Date().toISOString();
     await api.get('/browse', auth);
-    logRow({ ts: t, userId, endpoint: '/browse', token, label: 'normal' });
+    logRow({ ts: t, userId, endpoint: '/browse', ip, userAgent: USER_AGENT, token, label: 'normal' });
   }
 
   // 3. edit を 0~2 回ランダム実行
@@ -72,13 +89,13 @@ async function normalSequence(userId) {
   for (let i = 0; i < editCount; i++) {
     const t = new Date().toISOString();
     await api.post('/edit', {}, auth);
-    logRow({ ts: t, userId, endpoint: '/edit', token, label: 'normal' });
+    logRow({ ts: t, userId, endpoint: '/edit', ip, userAgent: USER_AGENT, token, label: 'normal' });
   }
 
   // 4. logout
   const t3 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: t3, userId, endpoint: '/logout', token, label: 'normal' });
+  logRow({ ts: t3, userId, endpoint: '/logout', ip, userAgent: USER_AGENT, token, label: 'normal' });
 }
 
 // ── メイン ───────────────────────────────────
