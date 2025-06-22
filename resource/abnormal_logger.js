@@ -107,8 +107,44 @@ async function reversedSequence(userId) {
   logRow({ ts: ts2, userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
 }
 
+// 4) セッション流用（別IPから同一JWTを使用）
+async function sessionReuseSequence(userId) {
+  // login 時の IP
+  const ip1 = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT }
+  });
+  const token = data.token;
+  const auth = token => ({
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'User-Agent': USER_AGENT
+    }
+  });
+
+  // 同一トークンを別IPから利用
+  const ip2 = randomIP();
+  const t = new Date().toISOString();
+  try {
+    await api.get('/browse', {
+      ...auth(token),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'X-Forwarded-For': ip2,
+        'User-Agent': USER_AGENT
+      }
+    });
+  } catch (_) {}
+  logRow({ ts: t, userId, endpoint: '/browse', ip: ip2, token, label: 'token_reuse' });
+}
+
 // 全異常パターンを配列で管理
-const scenarios = [invalidTokenSequence, noTokenSequence, reversedSequence];
+const scenarios = [
+  invalidTokenSequence,
+  noTokenSequence,
+  reversedSequence,
+  sessionReuseSequence
+];
 
 // ── メイン ───────────────────────────────────
 (async () => {
