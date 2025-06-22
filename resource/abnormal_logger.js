@@ -19,11 +19,17 @@ const MAP = {
 };
 
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
-fs.writeFileSync(LOG_FILE, 'timestamp,user_id,endpoint,use_case,type,jwt,label\n');
+fs.writeFileSync(
+  LOG_FILE,
+  'timestamp,user_id,endpoint,use_case,type,ip,user_agent,jwt,label\n'
+);
 
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randomIP = () => Array.from({ length: 4 }, () => randInt(1, 254)).join('.');
+const USER_AGENT = 'abnormal-logger';
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -33,7 +39,7 @@ function extractPayload(token) {
     return 'invalid';
   }
 }
-function logRow({ ts, userId, endpoint, token = 'none', label }) {
+function logRow({ ts, userId, endpoint, ip, userAgent, token = 'none', label }) {
   const { use_case = 'unknown', type = 'unknown' } = MAP[endpoint] || {};
   fs.appendFileSync(
     LOG_FILE,
@@ -43,6 +49,8 @@ function logRow({ ts, userId, endpoint, token = 'none', label }) {
       endpoint,
       use_case,
       type,
+      ip,
+      userAgent,
       extractPayload(token),
       label
     ].join(',') + '\n'
@@ -52,33 +60,52 @@ function logRow({ ts, userId, endpoint, token = 'none', label }) {
 // ── 各異常シナリオ ───────────────────────────
 // 1) 無効JWT
 async function invalidTokenSequence(userId) {
-  const { data } = await api.post('/login', { user_id: userId });
+  const ip = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+  });
   const badToken = data.token.slice(0, -1) + 'x';
-  const auth = { headers: { Authorization: `Bearer ${badToken}` } };
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${badToken}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
   const ts = new Date().toISOString();
   try { await api.get('/browse', auth); } catch (_) {}
-  logRow({ ts, userId: 'unknown', endpoint: '/browse', token: badToken, label: 'invalid_token' });
+  logRow({ ts, userId: 'unknown', endpoint: '/browse', ip, userAgent: USER_AGENT, token: badToken, label: 'invalid_token' });
 }
 
 // 2) JWTなしアクセス
 async function noTokenSequence() {
+  const ip = randomIP();
   const ts = new Date().toISOString();
-  try { await api.post('/edit'); } catch (_) {}
-  logRow({ ts, userId: 'unknown', endpoint: '/edit', token: 'none', label: 'no_token' });
+  try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
+  logRow({ ts, userId: 'unknown', endpoint: '/edit', ip, userAgent: USER_AGENT, token: 'none', label: 'no_token' });
 }
 
 // 3) 順序異常 (edit → login → logout)
 async function reversedSequence(userId) {
+  const ip = randomIP();
   const ts1 = new Date().toISOString();
-  try { await api.post('/edit'); } catch (_) {}
-  logRow({ ts: ts1, userId: 'unknown', endpoint: '/edit', token: 'none', label: 'no_token' });
+  try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
+  logRow({ ts: ts1, userId: 'unknown', endpoint: '/edit', ip, userAgent: USER_AGENT, token: 'none', label: 'no_token' });
 
-  const { data } = await api.post('/login', { user_id: userId });
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+  });
   const token = data.token;
-  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const auth = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT
+    }
+  };
   const ts2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
-  logRow({ ts: ts2, userId, endpoint: '/logout', token, label: 'out_of_order' });
+  logRow({ ts: ts2, userId, endpoint: '/logout', ip, userAgent: USER_AGENT, token, label: 'out_of_order' });
 }
 
 // 全異常パターンを配列で管理

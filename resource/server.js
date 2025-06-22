@@ -3,7 +3,7 @@
  * -----------------------------------------
  * - Node.js v20.x 推奨
  * - express / jsonwebtoken / body-parser
- * - CSV ログ: timestamp, user_id, endpoint, use_case, type, jwt, label
+ * - CSV ログ: timestamp, user_id, endpoint, use_case, type, ip, user_agent, jwt, label
  */
 
 const express = require('express');
@@ -30,20 +30,25 @@ const MAP = {
 
 const app = express();
 app.use(bodyParser.json());
+const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
+  .split(',')[0].trim();
 
 // ── 2. ログファイル準備 ───────────────────────────────
 if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
 if (!fs.existsSync(LOG_FILE)) fs.writeFileSync(
   LOG_FILE,
-  'timestamp,user_id,endpoint,use_case,type,jwt_payload,label\n',
+  'timestamp,user_id,endpoint,use_case,type,ip,user_agent,jwt_payload,label\n',
   'utf8'
 );
 
-const stringify = obj => JSON.stringify(obj).replace(/,/g, ';'); // CSV用にカンマ潰し
+const encodePayload = obj =>
+  Buffer.from(JSON.stringify(obj)).toString('base64url');
 
 function writeLog({
   userId = 'unknown',
   endpoint,
+  ip = 'unknown',
+  userAgent = 'unknown',
   payload = 'none',
   label = 'unknown'
 }) {
@@ -54,7 +59,9 @@ function writeLog({
     endpoint,
     use_case,
     type,
-    typeof payload === 'object' ? stringify(payload) : payload,
+    ip,
+    userAgent.replace(/,/g, ';'),
+    typeof payload === 'object' ? encodePayload(payload) : payload,
     label
   ].join(',') + '\n';
 
@@ -67,14 +74,25 @@ function writeLog({
 function auth(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader) {
-    writeLog({ endpoint: req.path, label: 'no_token' });
+    writeLog({
+      endpoint: req.path,
+      ip: getClientIP(req),
+      userAgent: req.headers['user-agent'] || '',
+      label: 'no_token'
+    });
     return res.status(401).json({ error: 'No token supplied' });
   }
   const token = authHeader.split(' ')[1];
   jwt.verify(token, SECRET, (err, decoded) => {
     if (err) {
       const payload = extractPayload(token) || 'invalid';
-      writeLog({ endpoint: req.path, payload, label: 'invalid_token' });
+      writeLog({
+        endpoint: req.path,
+        ip: getClientIP(req),
+        userAgent: req.headers['user-agent'] || '',
+        payload,
+        label: 'invalid_token'
+      });
       return res.status(403).json({ error: 'Invalid token' });
     }
     req.user  = decoded;  // { user_id }
@@ -90,7 +108,14 @@ app.post('/login', (req, res) => {
   if (!user_id) return res.status(400).json({ error: 'user_id is required' });
   const payload = { user_id, iat: Date.now() };// 差別化
   const token   = jwt.sign(payload, SECRET, { expiresIn: '1h' });// token を渡さず payload だけ
-  writeLog({ userId: user_id, endpoint: '/login', payload, label: 'normal' });
+  writeLog({
+    userId: user_id,
+    endpoint: '/login',
+    ip: getClientIP(req),
+    userAgent: req.headers['user-agent'] || '',
+    payload,
+    label: 'normal'
+  });
   res.json({ token });
 });
 
@@ -99,6 +124,8 @@ app.get('/browse', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/browse',
+    ip: getClientIP(req),
+    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
@@ -110,6 +137,8 @@ app.post('/edit', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/edit',
+    ip: getClientIP(req),
+    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
@@ -121,6 +150,8 @@ app.post('/logout', auth, (req, res) => {
   writeLog({
     userId: req.user.user_id,
     endpoint: '/logout',
+    ip: getClientIP(req),
+    userAgent: req.headers['user-agent'] || '',
     payload: req.user,
     label: 'normal'
   });
