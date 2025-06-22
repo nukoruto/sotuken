@@ -10,6 +10,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
+const updateOperationLog = require('./update_operation_log');
 const SECRET = 'change_this_to_env_secret';
 const LOG_FILE = path.join(__dirname, 'logs', 'abnormal_log.csv');
 
@@ -217,4 +218,5 @@ const scenarios = [
     await sleep(delay);
   }
   console.log(`完了：logs/abnormal_log.csv に保存済`);
+  updateOperationLog();
 })();
