@@ -195,6 +195,57 @@ async function expiredTokenSequence(userId) {
   logRow({ ts: t, userId: getIssuer(token), nowId: userId, endpoint: '/browse', ip, token, label: 'expired_token' });
 }
 
+// 7) user_id なしでのログイン試行
+async function missingUserIdSequence(nowId = 'unknown') {
+  const ip = randomIP();
+  const ts = new Date().toISOString();
+  try {
+    await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  } catch (_) {}
+  logRow({ ts, userId: 'unknown', nowId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
+}
+
+// 8) 存在しないエンドポイントへのアクセス
+async function invalidEndpointSequence(userId) {
+  const ip = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  const token = data.token;
+  registerToken(token, userId);
+  const auth = { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } };
+  const ts = new Date().toISOString();
+  try { await api.get('/admin', auth); } catch (_) {}
+  logRow({ ts, userId: getIssuer(token), nowId: userId, endpoint: '/admin', ip, token, label: 'invalid_endpoint' });
+}
+
+// 9) IP を切り替えて同一トークンを使用
+async function ipSwitchSequence(userId) {
+  const ip1 = randomIP();
+  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT } });
+  const token = data.token;
+  registerToken(token, userId);
+  const ip2 = randomIP();
+  const auth = { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip2, 'User-Agent': USER_AGENT } };
+  const ts = new Date().toISOString();
+  try { await api.get('/browse', auth); } catch (_) {}
+  logRow({ ts, userId: getIssuer(token), nowId: userId, endpoint: '/browse', ip: ip2, token, label: 'ip_switch' });
+}
+
+// 10) 過剰な連続ログイン
+async function rapidLoginSequence(userId) {
+  const ip = randomIP();
+  for (let i = 0; i < 5; i++) {
+    const ts = new Date().toISOString();
+    try {
+      const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+      registerToken(data.token, userId);
+      logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token: data.token, label: 'rapid_login' });
+    } catch (_) {
+      logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'rapid_login' });
+    }
+    await sleep(50);
+  }
+}
+
 
 // 全異常パターンを配列で管理
 const scenarios = [
@@ -203,7 +254,11 @@ const scenarios = [
   reversedSequence,
   tokenReuseSequence,
   reuseAfterLogoutSequence,
-  expiredTokenSequence
+  expiredTokenSequence,
+  missingUserIdSequence,
+  invalidEndpointSequence,
+  ipSwitchSequence,
+  rapidLoginSequence
 ];
 
 // ── メイン ───────────────────────────────────
