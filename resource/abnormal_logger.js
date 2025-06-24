@@ -231,19 +231,52 @@ async function ipSwitchSequence(userId) {
 }
 
 // 10) 過剰な連続ログイン
-async function rapidLoginSequence(userId) {
-  const ip = randomIP();
-  for (let i = 0; i < 5; i++) {
-    const ts = new Date().toISOString();
-    try {
-      const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
-      registerToken(data.token, userId);
-      logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token: data.token, label: 'rapid_login' });
-    } catch (_) {
-      logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'rapid_login' });
+  async function rapidLoginSequence(userId) {
+    const ip = randomIP();
+    for (let i = 0; i < 5; i++) {
+      const ts = new Date().toISOString();
+      try {
+        const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+        registerToken(data.token, userId);
+        logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token: data.token, label: 'rapid_login' });
+      } catch (_) {
+        logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'rapid_login' });
+      }
+      await sleep(50);
     }
-    await sleep(50);
   }
+
+// 11) さまざまな操作を連結した複合異常
+async function complexSequence(userId) {
+  const ip = randomIP();
+  // 正常ログイン
+  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  const token = data.token;
+  registerToken(token, userId);
+  const auth = { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } };
+  const t1 = new Date().toISOString();
+  await api.get('/browse', auth);
+  logRow({ ts: t1, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
+
+  // ログアウト
+  const t2 = new Date().toISOString();
+  await api.post('/logout', {}, auth);
+  logRow({ ts: t2, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+
+  // ログアウト済みトークンで操作
+  const t3 = new Date().toISOString();
+  try { await api.post('/edit', {}, auth); } catch (_) {}
+  logRow({ ts: t3, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'reuse_after_logout' });
+
+  // user_id を送らずログイン試行
+  const t4 = new Date().toISOString();
+  try { await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
+  logRow({ ts: t4, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
+
+  // 存在しないページへアクセス
+  const t5 = new Date().toISOString();
+  try { await api.get('/admin', auth); } catch (_) {}
+  logRow({ ts: t5, userId, nowId: userId, endpoint: '/admin', ip, token, label: 'invalid_endpoint' });
 }
 
 
@@ -258,7 +291,8 @@ const scenarios = [
   missingUserIdSequence,
   invalidEndpointSequence,
   ipSwitchSequence,
-  rapidLoginSequence
+  rapidLoginSequence,
+  complexSequence
 ];
 
 // ── メイン ───────────────────────────────────
