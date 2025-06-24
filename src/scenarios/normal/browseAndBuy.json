@@ -1,0 +1,8 @@
+{
+  "name": "browseAndBuy",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 3 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

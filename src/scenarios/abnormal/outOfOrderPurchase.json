@@ -1,0 +1,10 @@
+{
+  "name": "outOfOrderPurchase",
+  "steps": [
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "GET",  "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 5 } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "spam" } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}
