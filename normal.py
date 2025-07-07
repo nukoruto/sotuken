@@ -1,6 +1,12 @@
+import argparse
 import requests
 import time
 import os
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--h', type=int, default=10,
+                    help='表示するログ行数')
+args = parser.parse_args()
 
 BASE = 'http://localhost:3000'
 
@@ -22,7 +28,7 @@ def main():
     log_file = os.path.join('resource', 'logs', 'request_log.csv')
     if os.path.exists(log_file):
         with open(log_file, 'r') as f:
-            lines = f.readlines()[-10:]
+            lines = f.readlines()[-args.h:]
             print(''.join(lines))
     else:
         print('Log file not found')

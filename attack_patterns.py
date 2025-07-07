@@ -1,3 +1,4 @@
+import argparse
 import requests
 import subprocess
 import time
@@ -8,6 +9,11 @@ import jwt
 
 SERVER_PATH = os.path.join('resource', 'server.js')
 SECRET = 'change_this_to_env_secret'
+parser = argparse.ArgumentParser()
+parser.add_argument('--h', type=int, default=20,
+                    help='表示するログ行数')
+args = parser.parse_args()
+
 BASE = 'http://localhost:3000'
 
 def start_server():
@@ -132,7 +138,7 @@ def main():
     finally:
         server.terminate()
         server.wait()
-        print_log()
+        print_log(args.h)
 
 if __name__ == '__main__':
     main()
