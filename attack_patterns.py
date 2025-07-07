@@ -16,8 +16,11 @@ args = parser.parse_args()
 
 BASE = 'http://localhost:3000'
 
-def start_server():
-    return subprocess.Popen(['node', SERVER_PATH])
+def start_server(log_dir):
+    os.makedirs(log_dir, exist_ok=True)
+    env = os.environ.copy()
+    env['LOG_DIR'] = log_dir
+    return subprocess.Popen(['node', SERVER_PATH], env=env)
 
 def a1_unauthenticated():
     try:
@@ -113,8 +116,28 @@ def a10_skip_sequence():
     h = {'Authorization': f'Bearer {token}'}
     requests.post(f'{BASE}/edit', headers=h)
 
-def print_log(lines=20):
-    log = os.path.join('resource', 'logs', 'request_log.csv')
+def a11_xss_attack():
+    r = requests.post(f'{BASE}/login', json={'user_id': 'a11'})
+    token = r.json()['token']
+    h = {'Authorization': f'Bearer {token}'}
+    requests.post(f'{BASE}/api/forum/posts', json={
+        'content': '<script>alert(1)</script>'
+    }, headers=h)
+    requests.get(f'{BASE}/api/forum/posts', headers=h)
+
+def a12_session_hijack():
+    r = requests.post(f'{BASE}/login', json={'user_id': 'a12'})
+    token = r.json()['token']
+    h1 = {'Authorization': f'Bearer {token}', 'X-Forwarded-For': '1.1.1.1'}
+    requests.get(f'{BASE}/browse', headers=h1)
+    h2 = {'Authorization': f'Bearer {token}', 'X-Forwarded-For': '2.2.2.2'}
+    try:
+        requests.get(f'{BASE}/edit', headers=h2)
+    except requests.RequestException:
+        pass
+
+def print_log(lines=20, log_dir='resource/logs'):
+    log = os.path.join(log_dir, 'request_log.csv')
     if os.path.exists(log):
         with open(log) as f:
             for l in f.readlines()[-lines:]:
@@ -122,7 +145,8 @@ def print_log(lines=20):
 
 
 def main():
-    server = start_server()
+    log_dir = os.path.join('resource', 'logs', time.strftime('%Y%m%d_%H%M%S'))
+    server = start_server(log_dir)
     time.sleep(1)
     try:
         a1_unauthenticated()
@@ -135,10 +159,12 @@ def main():
         a8_expired_token()
         a9_spoofing()
         a10_skip_sequence()
+        a11_xss_attack()
+        a12_session_hijack()
     finally:
         server.terminate()
         server.wait()
-        print_log(args.h)
+        print_log(args.h, log_dir)
 
 if __name__ == '__main__':
     main()
