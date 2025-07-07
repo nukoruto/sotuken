@@ -11,10 +11,10 @@ npm install
 pip install -r requirements.txt
 ```
 
-Run the attack sequence:
+Run the attack sequence using npm:
 
 ```bash
-python3 attack_patterns.py
+npm test
 ```
 
 Log output is written to `resource/logs/request_log.csv`.
