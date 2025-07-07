@@ -1,0 +1,7 @@
+{
+  "name": "invalidProductPost",
+  "steps": [
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": "x" } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

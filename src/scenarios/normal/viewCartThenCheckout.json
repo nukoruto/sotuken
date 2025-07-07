@@ -1,0 +1,9 @@
+{
+  "name": "viewCartThenCheckout",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 4 } },
+    { "method": "GET", "url": "/api/shop/cart" },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "forumActivity",
+  "steps": [
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "First" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "Second" } },
+    { "method": "GET", "url": "/api/forum/posts" }
+  ]
+}

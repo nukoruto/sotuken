@@ -1,0 +1,9 @@
+{
+  "name": "crossCartAndForum",
+  "steps": [
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "spammy" } },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 3 } },
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "spam again" } }
+  ]
+}
