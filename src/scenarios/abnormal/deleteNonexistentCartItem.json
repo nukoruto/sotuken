@@ -1,0 +1,8 @@
+{
+  "name": "deleteNonexistentCartItem",
+  "steps": [
+    { "method": "DELETE", "url": "/api/shop/cart/999" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 2 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

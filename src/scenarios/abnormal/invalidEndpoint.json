@@ -1,0 +1,7 @@
+{
+  "name": "invalidEndpoint",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/unknown" },
+    { "method": "GET", "url": "/api/forum/hack" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "browseProductsOnly",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "GET", "url": "/api/forum/posts" }
+  ]
+}

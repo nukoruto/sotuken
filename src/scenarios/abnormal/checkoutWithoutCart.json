@@ -1,0 +1,7 @@
+{
+  "name": "checkoutWithoutCart",
+  "steps": [
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "GET", "url": "/api/shop/products" }
+  ]
+}

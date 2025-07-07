@@ -1,0 +1,8 @@
+{
+  "name": "forumSpam",
+  "steps": [
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "buy now!!" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "buy now!!" } },
+    { "method": "GET", "url": "/api/forum/posts" }
+  ]
+}

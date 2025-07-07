@@ -1,0 +1,9 @@
+{
+  "name": "browseForumThenShop",
+  "steps": [
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 5 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

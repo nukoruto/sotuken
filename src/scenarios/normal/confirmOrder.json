@@ -1,0 +1,11 @@
+{
+  "name": "confirmOrder",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 1 } },
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "GET", "url": "/api/shop/orders" },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "Thanks" } },
+    { "method": "GET", "url": "/api/shop/orders/1" }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "postAndBrowseForum",
+  "steps": [
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "hello world" } },
+    { "method": "GET", "url": "/api/forum/posts" }
+  ]
+}
