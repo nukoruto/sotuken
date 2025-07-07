@@ -15,7 +15,7 @@ const { extractPayload } = require('./jwt_helper');
 
 const SECRET   = 'change_this_to_env_secret'; // 本運用では環境変数へ
 const PORT     = 3000;
-const LOG_DIR  = path.join(__dirname, 'logs');
+const LOG_DIR  = process.env.LOG_DIR || path.join(__dirname, 'logs');
 // 各リクエストの詳細ログは request_log.csv に保存
 const REQUEST_LOG = path.join(LOG_DIR, 'request_log.csv');
 
@@ -35,7 +35,7 @@ const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
   .split(',')[0].trim();
 
 // ── 2. ログファイル準備 ───────────────────────────────
-if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
+if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR, { recursive: true });
 if (!fs.existsSync(REQUEST_LOG)) fs.writeFileSync(
   REQUEST_LOG,
   'timestamp,user_id,endpoint,use_case,type,ip,jwt_payload,label\n',
