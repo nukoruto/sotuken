@@ -1,8 +1,8 @@
 model:
   embedding_dim: 128
   lstm_units: 100
-  epochs: 2
-  batch_size: 4
+  epochs: 300
+  batch_size: 16
   path: lstm_model.h5
 data:
   normal: resource/logs/normal_log.csv
@@ -12,6 +12,6 @@ sequence_model:
   units: 100
   dropout: 0.0
   epochs: 20
-  second_lstm: false
+  second_lstm: true
   path: seq_model.h5
-GPU: null
+GPU: 0

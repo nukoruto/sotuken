@@ -4,3 +4,4 @@ PyYAML
 PyJWT
 requests
 csv-writer
+matplotlib
