@@ -1,0 +1,10 @@
+{
+  "name": "browseThenLogout",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 1 } },
+    { "method": "GET", "url": "/api/shop/cart" },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

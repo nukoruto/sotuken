@@ -1,0 +1,10 @@
+{
+  "name": "editThenLogout",
+  "steps": [
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "hi" } },
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 2 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

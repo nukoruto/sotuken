@@ -1,0 +1,11 @@
+{
+  "name": "forumPostFlood",
+  "steps": [
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "1" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "2" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "3" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "4" } },
+    { "method": "POST", "url": "/api/forum/posts", "body": { "msg": "5" } },
+    { "method": "GET", "url": "/api/forum/posts" }
+  ]
+}

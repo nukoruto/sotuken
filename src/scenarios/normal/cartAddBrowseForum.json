@@ -1,0 +1,10 @@
+{
+  "name": "cartAddBrowseForum",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 5 } },
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 6 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}
