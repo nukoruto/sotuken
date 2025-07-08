@@ -31,3 +31,16 @@ stress patterns.  The latest version adds `/profile` and `/search` endpoints for
 profile management and public keyword lookup.  Normal scenarios now include a
 flow visiting these endpoints, while abnormal scenarios test unauthenticated
 access and out‑of‑order profile updates.
+
+### LSTM Training
+
+A simple TensorFlow based trainer is provided to learn normal vs abnormal
+operation sequences.  Use `lstm_train.py` to train or update the model:
+
+```bash
+python lstm_train.py --model my_model.h5
+```
+
+Normal and abnormal CSV logs from `resource/logs/` are used by default. Pass
+`--normal` or `--abnormal` to specify different files.  When the model path is
+already present it will be loaded and further trained.
