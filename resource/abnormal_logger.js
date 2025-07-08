@@ -18,7 +18,9 @@ const MAP = {
   '/login':  { use_case: 'Login',       type: 'AUTH'   },
   '/logout': { use_case: 'Logout',      type: 'AUTH'   },
   '/browse': { use_case: 'ViewPage',    type: 'READ'   },
-  '/edit':   { use_case: 'EditContent', type: 'UPDATE' }
+  '/edit':   { use_case: 'EditContent', type: 'UPDATE' },
+  '/profile': { use_case: 'Profile',    type: 'UPDATE' },
+  '/search':  { use_case: 'Search',     type: 'READ' }
 };
 
 if (!fs.existsSync(path.dirname(LOG_FILE))) fs.mkdirSync(path.dirname(LOG_FILE));
@@ -96,6 +98,14 @@ async function noTokenSequence(userId = 'unknown') {
   logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
 }
 
+// 2b) 認証なしでプロフィール閲覧
+async function unauthorizedProfileSequence(userId = 'unknown') {
+  const ip = randomIP();
+  const ts = new Date().toISOString();
+  try { await api.get('/profile', { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
+  logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
+}
+
 // 3) 順序異常 (edit → login → logout)
 async function reversedSequence(userId) {
   const ip = randomIP();
@@ -115,6 +125,22 @@ async function reversedSequence(userId) {
       'User-Agent': USER_AGENT
     }
   };
+  const ts2 = new Date().toISOString();
+  await api.post('/logout', {}, auth);
+  logRow({ ts: ts2, userId: getIssuer(token), nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
+}
+
+// 3b) プロフィール更新を先に実行
+async function profileBeforeLoginSequence(userId) {
+  const ip = randomIP();
+  const ts1 = new Date().toISOString();
+  try { await api.post('/profile', { bio: 'x' }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
+  logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
+
+  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  const token = data.token;
+  registerToken(token, userId);
+  const auth = { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } };
   const ts2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
   logRow({ ts: ts2, userId: getIssuer(token), nowId: userId, endpoint: '/logout', ip, token, label: 'out_of_order' });
@@ -284,7 +310,9 @@ async function complexSequence(userId) {
 const scenarios = [
   invalidTokenSequence,
   noTokenSequence,
+  unauthorizedProfileSequence,
   reversedSequence,
+  profileBeforeLoginSequence,
   tokenReuseSequence,
   reuseAfterLogoutSequence,
   expiredTokenSequence,

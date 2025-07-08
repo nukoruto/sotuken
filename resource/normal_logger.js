@@ -17,7 +17,9 @@ const MAP = {
   '/login':  { use_case: 'Login',       type: 'AUTH'   },
   '/logout': { use_case: 'Logout',      type: 'AUTH'   },
   '/browse': { use_case: 'ViewPage',    type: 'READ'   },
-  '/edit':   { use_case: 'EditContent', type: 'UPDATE' }
+  '/edit':   { use_case: 'EditContent', type: 'UPDATE' },
+  '/profile': { use_case: 'Profile',    type: 'UPDATE' },
+  '/search':  { use_case: 'Search',     type: 'READ' }
 };
 
 // ── CSV 初期化 ────────────────────────────────
@@ -93,6 +95,24 @@ async function stepLogout(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.post('/logout', {}, auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+}
+
+async function stepProfileView(userId, ip, token, auth) {
+  const ts = new Date().toISOString();
+  await api.get('/profile', auth);
+  logRow({ ts, userId, nowId: userId, endpoint: '/profile', ip, token, label: 'normal' });
+}
+
+async function stepProfileUpdate(userId, ip, token, auth) {
+  const ts = new Date().toISOString();
+  await api.post('/profile', { bio: 'hello' }, auth);
+  logRow({ ts, userId, nowId: userId, endpoint: '/profile', ip, token, label: 'normal' });
+}
+
+async function stepSearch(userId, ip, token) {
+  const ts = new Date().toISOString();
+  await api.get('/search?q=test', { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  logRow({ ts, userId, nowId: userId, endpoint: '/search', ip, token, label: 'normal' });
 }
 
 // ── 各ユースケース定義 ──────────────────────────
@@ -193,6 +213,15 @@ async function ucO2O3(userId) {               // Login → Browse (no logout)
   for (let i = 0; i < count; i++) await stepBrowse(userId, ip, token, auth);
 }
 
+async function ucP1(userId) {                 // Login → ProfileView → Update → Search → Logout
+  const ip = randomIP();
+  const { token, auth } = await stepLogin(userId, ip);
+  await stepProfileView(userId, ip, token, auth);
+  await stepProfileUpdate(userId, ip, token, auth);
+  await stepSearch(userId, ip, token);
+  await stepLogout(userId, ip, token, auth);
+}
+
 const scenarios = [
   { weight: 5, run: ucA2 },
   { weight: 3, run: ucA1 },
@@ -206,7 +235,8 @@ const scenarios = [
   { weight: 3, run: ucM3 },
   { weight: 2, run: ucM2 },
   { weight: 3, run: ucO1 },
-  { weight: 2, run: ucO2O3 }
+  { weight: 2, run: ucO2O3 },
+  { weight: 3, run: ucP1 }
 ];
 
 function pickScenario() {

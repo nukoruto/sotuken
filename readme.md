@@ -27,4 +27,7 @@ behaviour, while abnormal ones describe suspicious or out‑of‑order actions.
 These JSON files can be executed via the capture routes to generate additional
 operation logs for model training.  Over thirty scenarios are now provided,
 covering e‑commerce purchases, cart operations, forum posts, error cases and
-stress patterns.
+stress patterns.  The latest version adds `/profile` and `/search` endpoints for
+profile management and public keyword lookup.  Normal scenarios now include a
+flow visiting these endpoints, while abnormal scenarios test unauthenticated
+access and out‑of‑order profile updates.

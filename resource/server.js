@@ -25,7 +25,9 @@ const MAP = {
   '/login':  { use_case: 'Login',       type: 'AUTH'   },
   '/logout': { use_case: 'Logout',      type: 'AUTH'   },
   '/browse': { use_case: 'ViewPage',    type: 'READ'   },
-  '/edit':   { use_case: 'EditContent', type: 'UPDATE' }
+  '/edit':   { use_case: 'EditContent', type: 'UPDATE' },
+  '/profile': { use_case: 'Profile',    type: 'UPDATE' },
+  '/search':  { use_case: 'Search',     type: 'READ' }
 };
 // ──────────────────────────────────────────────────────
 
@@ -137,6 +139,42 @@ app.post('/edit', auth, (req, res) => {
     label: 'normal'
   });
   res.json({ message: 'Edit completed (dummy).' });
+});
+
+// GET /profile : 認証必須
+app.get('/profile', auth, (req, res) => {
+  writeLog({
+    userId: req.user.user_id,
+    endpoint: '/profile',
+    ip: getClientIP(req),
+    payload: req.user,
+    label: 'normal'
+  });
+  res.json({ profile: { user_id: req.user.user_id } });
+});
+
+// POST /profile : 認証必須
+app.post('/profile', auth, (req, res) => {
+  writeLog({
+    userId: req.user.user_id,
+    endpoint: '/profile',
+    ip: getClientIP(req),
+    payload: req.body,
+    label: 'normal'
+  });
+  res.json({ message: 'Profile updated.' });
+});
+
+// GET /search : 認証不要
+app.get('/search', (req, res) => {
+  writeLog({
+    userId: 'guest',
+    endpoint: '/search',
+    ip: getClientIP(req),
+    payload: req.query,
+    label: 'normal'
+  });
+  res.json({ results: [] });
 });
 
 // POST /logout : 認証必須
