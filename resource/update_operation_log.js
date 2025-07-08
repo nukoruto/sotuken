@@ -1,21 +1,29 @@
 const fs = require('fs');
 const path = require('path');
 
+const readline = require('readline');
+
 const LOG_DIR = path.join(__dirname, 'logs');
 const NORMAL_FILE = path.join(LOG_DIR, 'normal_log.csv');
 const ABNORMAL_FILE = path.join(LOG_DIR, 'abnormal_log.csv');
 const OP_FILE = path.join(LOG_DIR, 'operation_log.csv');
-
-function countLines(file) {
+async function countLines(file) {
   if (!fs.existsSync(file)) return 0;
-  const lines = fs.readFileSync(file, 'utf8').trim().split('\n');
-  return lines.length > 1 ? lines.length - 1 : 0; // exclude header
+  let count = -1; // exclude header
+  const rl = readline.createInterface({
+    input: fs.createReadStream(file),
+    crlfDelay: Infinity
+  });
+  for await (const _ of rl) count++;
+  return Math.max(count, 0);
 }
 
-function updateOperationLog() {
+async function updateOperationLog() {
   if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR);
-  const normalCount = countLines(NORMAL_FILE);
-  const abnormalCount = countLines(ABNORMAL_FILE);
+  const [normalCount, abnormalCount] = await Promise.all([
+    countLines(NORMAL_FILE),
+    countLines(ABNORMAL_FILE)
+  ]);
   const total = normalCount + abnormalCount;
 
   const header = 'timestamp,normal_count,abnormal_count,total\n';
@@ -30,5 +38,4 @@ function updateOperationLog() {
 if (require.main === module) {
   updateOperationLog();
 }
-
 module.exports = updateOperationLog;

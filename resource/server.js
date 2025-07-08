@@ -151,6 +151,40 @@ app.post('/logout', auth, (req, res) => {
   res.json({ message: 'Logged out.' });
 });
 
+// ── ログ取得API ─────────────────────────────
+async function readChunk(start, end) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    const s = fs.createReadStream(REQUEST_LOG, { start, end, encoding: 'utf8' });
+    s.on('data', c => (data += c));
+    s.on('end', () => resolve(data));
+    s.on('error', reject);
+  });
+}
+
+async function tailFile(lines) {
+  const { size } = await fs.promises.stat(REQUEST_LOG);
+  const chunk = 64 * 1024;
+  const ranges = [];
+  for (let pos = size; pos > 0 && ranges.length < 5; pos -= chunk) {
+    ranges.push({ start: Math.max(0, pos - chunk), end: pos - 1 });
+  }
+  const parts = await Promise.all(ranges.map(r => readChunk(r.start, r.end)));
+  const data = parts.reverse().join('');
+  const arr = data.trim().split('\n');
+  return arr.slice(-lines);
+}
+
+app.get('/logs', async (req, res) => {
+  const n = parseInt(req.query.lines || '20', 10);
+  try {
+    const lines = await tailFile(n);
+    res.json({ lines });
+  } catch (err) {
+    res.status(500).json({ error: 'log_read_failed' });
+  }
+});
+
 // ── 5. サーバ起動 ────────────────────────────────────
 app.listen(PORT, () =>
   console.log(`プレ版サーバ起動 → http://localhost:${PORT}`)
