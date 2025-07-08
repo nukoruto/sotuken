@@ -38,17 +38,18 @@ A simple TensorFlow based trainer is provided to learn normal vs abnormal
 operation sequences.  Use `lstm_train.py` to train or update the model:
 
 ```bash
-python lstm_train.py --model my_model.h5
+python lstm_train.py --model my_model.h5 --output-dir runs/exp1
 ```
 
 Normal and abnormal CSV logs from `resource/logs/` are used by default. Pass
-`--normal` or `--abnormal` to specify different files.  When the model path is
-already present it will be loaded and further trained.
+`--normal` or `--abnormal` to specify different files.  The model file
+specified with `--model` is loaded directly if it exists.  Use
+`--output-dir` to set a custom directory for saving new runs.
 
 To train with GPU acceleration, specify the GPU device number:
 
 ```bash
-python lstm_train.py --model my_model.h5 --gpu 0
+python lstm_train.py --model my_model.h5 --output-dir runs/gpu --gpu 0
 ```
 
 If `--gpu` is omitted, training runs on CPU only. Ensure TensorFlow with GPU
