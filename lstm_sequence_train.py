@@ -26,7 +26,8 @@ def build_vocab(seqs):
     for s in seqs:
         for e in s:
             if e not in vocab:
-                vocab[e] = len(vocab)
+                # 0 をパディング専用インデックスとして予約する
+                vocab[e] = len(vocab) + 1
     return vocab
 
 
@@ -42,7 +43,7 @@ def create_dataset(seqs, vocab):
     max_len = max(len(seq) for seq in X)
     X_pad = pad_sequences(X, maxlen=max_len, padding='post')
     y_pad = pad_sequences(y, maxlen=max_len, padding='post')
-    num_classes = len(vocab)
+    num_classes = len(vocab) + 1
     X_oh = to_categorical(X_pad, num_classes=num_classes)
     y_oh = to_categorical(y_pad, num_classes=num_classes)
     return X_oh, y_oh
@@ -75,7 +76,7 @@ def main():
     vocab = build_vocab(seqs)
     X, y = create_dataset(seqs, vocab)
 
-    model = create_model(len(vocab), args.units, args.dropout, args.second_lstm)
+    model = create_model(len(vocab) + 1, args.units, args.dropout, args.second_lstm)
     model.fit(X, y, epochs=args.epochs, batch_size=8, validation_split=0.2)
     model.save(args.model)
     print('モデル保存:', args.model)
