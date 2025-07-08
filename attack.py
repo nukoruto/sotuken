@@ -14,6 +14,12 @@ resp = requests.post(f'{base}/login', json={'user_id': 'attacker'})
 resp.raise_for_status()
 token = resp.json().get('token')
 
+# use new endpoints
+headers = {'Authorization': f'Bearer {token}'}
+requests.get(f'{base}/profile', headers=headers)
+requests.post(f'{base}/profile', json={'bio': 'hi'}, headers=headers)
+requests.get(f'{base}/search', params={'q': 'test'})
+
 # invalid token attack
 bad_token = token[:-1] + 'x'
 headers_bad = {'Authorization': f'Bearer {bad_token}'}
@@ -23,7 +29,6 @@ except requests.RequestException:
     pass
 
 # request nonexistent endpoint
-headers = {'Authorization': f'Bearer {token}'}
 try:
     requests.get(f'{base}/admin', headers=headers)
 except requests.RequestException:
