@@ -44,3 +44,12 @@ python lstm_train.py --model my_model.h5
 Normal and abnormal CSV logs from `resource/logs/` are used by default. Pass
 `--normal` or `--abnormal` to specify different files.  When the model path is
 already present it will be loaded and further trained.
+
+To train with GPU acceleration, specify the GPU device number:
+
+```bash
+python lstm_train.py --model my_model.h5 --gpu 0
+```
+
+If `--gpu` is omitted, training runs on CPU only. Ensure TensorFlow with GPU
+support is installed.
