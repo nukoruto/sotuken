@@ -12,8 +12,26 @@ function lookupRegion(ip) {
 }
 
 // セッションおよびトークン単位の状態保存
-const sessions = new Map(); // session_id -> {start,last,prev,repeat}
-const tokenMap = new Map(); // token -> {ip, ua}
+// last プロパティに最終アクセス時刻を保持する
+const sessions = new Map(); // session_id -> {start,last,prev,repeat,lastBodyKeys}
+const tokenMap = new Map(); // token -> {ip, ua, last}
+
+// エントリ保持期間 (1時間)
+const EXPIRE_MS = 60 * 60 * 1000;
+const CLEAN_INTERVAL_MS = 10 * 60 * 1000; // 定期クリーンアップ間隔
+
+function cleanupStale() {
+  const cutoff = Date.now() - EXPIRE_MS;
+  for (const [sid, info] of sessions) {
+    const last = info.last || info.start;
+    if (last < cutoff) sessions.delete(sid);
+  }
+  for (const [token, obj] of tokenMap) {
+    if ((obj.last || 0) < cutoff) tokenMap.delete(token);
+  }
+}
+
+setInterval(cleanupStale, CLEAN_INTERVAL_MS);
 
 module.exports = function recordSession(req, res, next) {
   // セッションIDの取得・生成
@@ -26,7 +44,8 @@ module.exports = function recordSession(req, res, next) {
   // セッション情報の取得・初期化
   let info = sessions.get(sid);
   if (!info) {
-    info = { start: Date.now(), last: null, prev: '-', repeat: 0, lastBodyKeys: {} };
+    const now = Date.now();
+    info = { start: now, last: now, prev: '-', repeat: 0, lastBodyKeys: {} };
     sessions.set(sid, info);
   }
 
@@ -59,10 +78,12 @@ module.exports = function recordSession(req, res, next) {
 
         const existing = tokenMap.get(token);
         if (!existing) {
-          tokenMap.set(token, { ip, ua });
+          tokenMap.set(token, { ip, ua, last: Date.now() });
         } else if (existing.ip !== ip || existing.ua !== ua) {
           tokenAlert = 1;
-          tokenMap.set(token, { ip, ua });
+          tokenMap.set(token, { ip, ua, last: Date.now() });
+        } else {
+          existing.last = Date.now();
         }
       } catch (_) {
         jwtValid = 0;
@@ -88,29 +109,29 @@ module.exports = function recordSession(req, res, next) {
       pattern = 'login_logout_login';
     }
 
-    csv.writeRecords([{\
-      ts: new Date(now).toISOString(),\
-      session_id: sid,\
-      user_id: req.user ? req.user.id || req.user.user_id : 'guest',\
-      ip,\
-      region: regionStr,\
-      method: req.method,\
-      url: req.originalUrl,\
-      status: res.statusCode,\
-      jwt_valid: jwtValid,\
-      jwt_iat: jwtIat,\
-      jwt_exp: jwtExp,\
-      user_agent: ua,\
-      referer: ref,\
-      delta,\
-      elapsed,\
-      rapid,\
-      prev: info.prev || '-',\
-      repeat_cnt: repeatCnt,\
-      pattern,\
-      token_alert: tokenAlert,\
-      body_hash: bodyHash,\
-      body_keys: bodyKeys\
+    csv.writeRecords([{
+      ts: new Date(now).toISOString(),
+      session_id: sid,
+      user_id: req.user ? req.user.id || req.user.user_id : 'guest',
+      ip,
+      region: regionStr,
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      jwt_valid: jwtValid,
+      jwt_iat: jwtIat,
+      jwt_exp: jwtExp,
+      user_agent: ua,
+      referer: ref,
+      delta,
+      elapsed,
+      rapid,
+      prev: info.prev || '-',
+      repeat_cnt: repeatCnt,
+      pattern,
+      token_alert: tokenAlert,
+      body_hash: bodyHash,
+      body_keys: bodyKeys
     }]).catch(console.error);
 
     info.last = now;
@@ -120,3 +141,8 @@ module.exports = function recordSession(req, res, next) {
 
   next();
 };
+
+module.exports.sessions = sessions;
+module.exports.tokenMap = tokenMap;
+module.exports.cleanupStale = cleanupStale;
+module.exports.EXPIRE_MS = EXPIRE_MS;

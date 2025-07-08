@@ -11,7 +11,8 @@
     "uuid": "^11.1.0"
   },
   "scripts": {
-    "test": "node run.js"
+    "test": "node run.js",
+    "unit-test": "node test/cleanup.test.js"
   },
   "devDependencies": {
     "puppeteer": "^24.10.2"
