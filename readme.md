@@ -11,13 +11,13 @@ npm install
 pip install -r requirements.txt
 ```
 
-次に npm 経由で攻撃シーケンスを実行します。
+次に npm 経由でテストを実行します。
 
 ```bash
 npm test
 ```
 
-ログは `resource/logs/request_log.csv` に書き出されます。
+このコマンドではサーバを起動し、正常ログと異常ログを取得した後、正常ログを用いた LSTM 学習と評価を自動的に行います。生成されたログは `resource/logs/normal_log.csv` と `resource/logs/abnormal_log.csv` に保存されます。
 
 ### 正常ログの取得
 
