@@ -2,3 +2,4 @@ requests
 PyJWT
 
 tensorflow>=2.12
+PyYAML
