@@ -70,3 +70,42 @@ python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_mod
 ```
 
 このモデルはワンホット入力を用い、各時刻ごとに利用可能なエンドポイントの分布を出力します。
+
+### 各スクリプトのオプション
+
+主要な実行ファイルと設定ファイルの引数および既定値を以下にまとめます。
+
+| ファイル | オプション | 既定値 | 説明 |
+| --- | --- | --- | --- |
+| attack.py | `--h` | `10` | 表示するログ行数 |
+| attack_patterns.py | `--h` | `20` | 表示するログ行数 |
+| normal.py | `--h` | `10` | 表示するログ行数 |
+| lstm_train.py | `--gpu` | `None` または `config.yaml` の `GPU` | 利用する GPU 番号 |
+|  | `--config` | `config.yaml` | 設定ファイルパス |
+|  | `--normal` | `resource/logs/normal_log.csv` | 正常ログ CSV |
+|  | `--abnormal` | `resource/logs/abnormal_log.csv` | 異常ログ CSV |
+|  | `--model` | `lstm_model.h5` | モデルファイル |
+|  | `--output-dir` | `<モデル名_日付>` | 学習結果保存先 |
+| lstm_sequence_train.py | `--log` | `resource/logs/normal_log.csv` | 学習用ログ |
+|  | `--model` | `seq_model.h5` | 保存するモデル |
+|  | `--epochs` | `20` | エポック数 |
+|  | `--units` | `100` | LSTM ユニット数 |
+|  | `--dropout` | `0.0` | Dropout 率 |
+|  | `--second_lstm` | `false` | 2 層目 LSTM を追加 |
+| resource/normal_logger.js | `[系列数]` | `100` | 生成する正常系列数 |
+|  | `[delay_ms]` | `100` | 各系列間の待ち時間(ms) |
+| resource/abnormal_logger.js | `[系列数]` | `100` | 生成する異常系列数 |
+|  | `[delay_ms]` | `100` | 各系列間の待ち時間(ms) |
+| test.js | `[normal_total]` | `100` | 正常系列数 |
+|  | `[normal_delay]` | `100` | 正常 delay(ms) |
+|  | `[abnormal_total]` | `100` | 異常系列数 |
+|  | `[abnormal_delay]` | `100` | 異常 delay(ms) |
+| config.yaml | `model.embedding_dim` | `128` | 埋め込み次元数 |
+|  | `model.lstm_units` | `100` | LSTM ユニット数 |
+|  | `model.epochs` | `300` | 学習エポック数 |
+|  | `model.batch_size` | `16` | バッチサイズ |
+|  | `model.path` | `lstm_model.h5` | モデルパス |
+|  | `data.normal` | `resource/logs/normal_log.csv` | 正常ログ CSV |
+|  | `data.abnormal` | `resource/logs/abnormal_log.csv` | 異常ログ CSV |
+|  | `GPU` | `null` | 使用 GPU 番号 (無指定時 CPU) |
+
