@@ -3,13 +3,35 @@ const path = require('path');
 
 const pythonCmd = process.platform === 'win32' ? 'py' : 'python';
 
-const server = spawn('node', [path.join('resource', 'server.js')], {
-  stdio: 'inherit'
-});
+function run(cmd, args = []) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { stdio: 'inherit' });
+    p.on('error', reject);
+    p.on('exit', code => {
+      if (code === 0) resolve();
+      else reject(new Error(`${cmd} exited with code ${code}`));
+    });
+  });
+}
 
-const attack = spawn(pythonCmd, ['attack.py'], { stdio: 'inherit' });
+(async () => {
+  const server = spawn('node', [path.join('resource', 'server.js')], {
+    stdio: 'inherit'
+  });
 
-attack.on('exit', code => {
-  server.kill();
-  process.exit(code);
-});
+  try {
+    // サーバ起動待ち
+    await new Promise(r => setTimeout(r, 1000));
+
+    // 正常ログ生成
+    await run('node', [path.join('resource', 'normal_logger.js'), '--n', '10', '--d', '50']);
+
+    // 異常ログ生成
+    await run('node', [path.join('resource', 'abnormal_logger.js'), '--n', '10', '--d', '50']);
+
+    // 学習と評価
+    await run(pythonCmd, ['lstm_train.py']);
+  } finally {
+    server.kill();
+  }
+})();
