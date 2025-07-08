@@ -24,7 +24,7 @@ npm test
 手動で正常系列だけを記録したい場合は、`resource/normal_logger.js` を実行します。以下のプロンプトを参考にしてください。
 
 ```bash
-node resource/normal_logger.js 50 100
+node resource/normal_logger.js --n 50 --d 100
 ```
 
 上記では 50 本の正常操作系列を 100ms 間隔で生成し、結果は `resource/logs/normal_log.csv` に追記されます。
@@ -34,7 +34,7 @@ node resource/normal_logger.js 50 100
 異常操作系列を生成するには `resource/abnormal_logger.js` を使用します。
 
 ```bash
-node resource/abnormal_logger.js 50 100
+node resource/abnormal_logger.js --n 50 --d 100
 ```
 
 こちらは 50 本のランダムな異常シナリオを出力し、`resource/logs/abnormal_log.csv` に保存します。
@@ -94,14 +94,14 @@ python lstm_sequence_train.py --gpu 0
 |  | `--units` | `config.yaml` の `sequence_model.units` | LSTM ユニット数 |
 |  | `--dropout` | `config.yaml` の `sequence_model.dropout` | Dropout 率 |
 |  | `--second_lstm` | `config.yaml` の `sequence_model.second_lstm` | 2 層目 LSTM を追加 |
-| resource/normal_logger.js | `[系列数]` | `100` | 生成する正常系列数 |
-|  | `[delay_ms]` | `100` | 各系列間の待ち時間(ms) |
-| resource/abnormal_logger.js | `[系列数]` | `100` | 生成する異常系列数 |
-|  | `[delay_ms]` | `100` | 各系列間の待ち時間(ms) |
-| test.js | `[normal_total]` | `100` | 正常系列数 |
-|  | `[normal_delay]` | `100` | 正常 delay(ms) |
-|  | `[abnormal_total]` | `100` | 異常系列数 |
-|  | `[abnormal_delay]` | `100` | 異常 delay(ms) |
+| resource/normal_logger.js | `--n` | `100` | 生成する正常系列数 |
+|  | `--d` | `100` | 各系列間の待ち時間(ms) |
+| resource/abnormal_logger.js | `--n` | `100` | 生成する異常系列数 |
+|  | `--d` | `100` | 各系列間の待ち時間(ms) |
+| test.js | `--n` | `100` | 正常系列数 |
+|  | `--d` | `100` | 正常 delay(ms) |
+|  | `--an` | `100` | 異常系列数 |
+|  | `--ad` | `100` | 異常 delay(ms) |
 | config.yaml | `model.embedding_dim` | `128` | 埋め込み次元数 |
 |  | `model.lstm_units` | `100` | LSTM ユニット数 |
 |  | `model.epochs` | `300` | 学習エポック数 |
