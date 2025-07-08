@@ -33,8 +33,11 @@ fs.writeFileSync(
 const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randomIP = () =>
-  Array.from({ length: 4 }, () => randInt(1, 254)).join('.');
+const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
+ 119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,203,210,211,
+ 219,220,221,222];
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'normal-logger';
 function extractPayload(token) {
   try {

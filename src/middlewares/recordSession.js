@@ -2,9 +2,13 @@ const crypto = require('crypto');
 const csv = require('../utils/csvWriter');
 const { v4: uuid } = require('uuid');
 
+const jpOctets = new Set([43,49,58,59,60,61,101,103,106,110,111,112,113,114,
+ 115,116,118,119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,
+ 203,210,211,219,220,221,222]);
 function lookupRegion(ip) {
   if (!ip) return '-';
   const first = parseInt(ip.split('.')[0], 10);
+  if (jpOctets.has(first)) return 'JP';
   if (first <= 126) return 'NA';
   if (first <= 191) return 'EU';
   if (first <= 223) return 'AP';
