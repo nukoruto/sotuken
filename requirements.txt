@@ -1,5 +1,5 @@
-requests
-PyJWT
-
 tensorflow>=2.12
+numpy
 PyYAML
+PyJWT
+requests
