@@ -1,9 +1,10 @@
 /**
  * 異常操作系列を自動生成して abnormal_log.csv に保存
  *
- *  呼び出し: node abnormal_logger.js --n 50 --d 100
+ *  呼び出し: node abnormal_logger.js --n 50 --d 100 --p 4
  *     --n 系列数   (default 100)
  *     --d delay_ms (ms, default 100)
+ *     --p 同時実行数 (default 1)
  */
 
 const axios = require('axios');
@@ -38,10 +39,14 @@ const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
  219,220,221,222];
 const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'abnormal-logger';
+const HUMAN_MIN = 300;
+const HUMAN_MAX = 800;
+const humanDelay = () => sleep(randInt(HUMAN_MIN, HUMAN_MAX));
 function parseArgs() {
   const argv = process.argv.slice(2);
   let total = 100;
   let delay = 100;
+  let parallel = 1;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--n') {
       total = parseInt(argv[i + 1], 10) || total;
@@ -49,9 +54,12 @@ function parseArgs() {
     } else if (argv[i] === '--d') {
       delay = parseInt(argv[i + 1], 10) || delay;
       i++;
+    } else if (argv[i] === '--p') {
+      parallel = parseInt(argv[i + 1], 10) || parallel;
+      i++;
     }
   }
-  return { total, delay };
+  return { total, delay, parallel };
 }
 // token と発行者(user_id)の対応表
 const tokenMap = new Map();
@@ -114,6 +122,7 @@ async function noTokenSequence(userId = 'unknown') {
   const ts = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
+  await humanDelay();
 }
 
 // 2b) 認証なしでプロフィール閲覧
@@ -122,6 +131,7 @@ async function unauthorizedProfileSequence(userId = 'unknown') {
   const ts = new Date().toISOString();
   try { await api.get('/profile', { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
+  await humanDelay();
 }
 
 // 3) 順序異常 (edit → login → logout)
@@ -130,6 +140,7 @@ async function reversedSequence(userId) {
   const ts1 = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
+  await humanDelay();
 
   const { data } = await api.post('/login', { user_id: userId }, {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
@@ -154,6 +165,7 @@ async function profileBeforeLoginSequence(userId) {
   const ts1 = new Date().toISOString();
   try { await api.post('/profile', { bio: 'x' }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
+  await humanDelay();
 
   const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
   const token = data.token;
@@ -195,6 +207,7 @@ async function tokenReuseSequence(nowId) {
     });
   } catch (_) {}
   logRow({ ts: t, userId: issuerId, nowId, endpoint: '/browse', ip, token, label: 'token_reuse' });
+  await humanDelay();
 }
 
 // 5) ログアウト後に同一トークンを再利用
@@ -247,6 +260,7 @@ async function missingUserIdSequence(nowId = 'unknown') {
     await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
   } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
+  await humanDelay();
 }
 
 // 8) 存在しないエンドポイントへのアクセス
@@ -283,8 +297,10 @@ async function ipSwitchSequence(userId) {
         const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
         registerToken(data.token, userId);
         logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token: data.token, label: 'rapid_login' });
+  await humanDelay();
       } catch (_) {
         logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'rapid_login' });
+  await humanDelay();
       }
       await sleep(50);
     }
@@ -301,26 +317,31 @@ async function complexSequence(userId) {
   const t1 = new Date().toISOString();
   await api.get('/browse', auth);
   logRow({ ts: t1, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
+  await humanDelay();
 
   // ログアウト
   const t2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
   logRow({ ts: t2, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+  await humanDelay();
 
   // ログアウト済みトークンで操作
   const t3 = new Date().toISOString();
   try { await api.post('/edit', {}, auth); } catch (_) {}
   logRow({ ts: t3, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'reuse_after_logout' });
+  await humanDelay();
 
   // user_id を送らずログイン試行
   const t4 = new Date().toISOString();
   try { await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: t4, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
+  await humanDelay();
 
   // 存在しないページへアクセス
   const t5 = new Date().toISOString();
   try { await api.get('/admin', auth); } catch (_) {}
   logRow({ ts: t5, userId, nowId: userId, endpoint: '/admin', ip, token, label: 'invalid_endpoint' });
+  await humanDelay();
 }
 
 
@@ -343,14 +364,18 @@ const scenarios = [
 
 // ── メイン ───────────────────────────────────
 (async () => {
-  const { total, delay } = parseArgs();
+  const { total, delay, parallel } = parseArgs();
   console.log(`▶ 異常系列 ${total} 本 生成開始`);
 
+  const running = new Set();
   for (let i = 0; i < total; i++) {
     const scen = rand(scenarios);
-    await scen(`abuser${i + 1}`);
+    const p = scen(`abuser${i + 1}`).then(() => running.delete(p));
+    running.add(p);
+    if (running.size >= parallel) await Promise.race(running);
     await sleep(delay);
   }
+  await Promise.all(running);
   console.log(`完了：logs/abnormal_log.csv に保存済`);
   updateOperationLog();
 })();

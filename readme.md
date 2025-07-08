@@ -24,20 +24,19 @@ npm test
 手動で正常系列だけを記録したい場合は、`resource/normal_logger.js` を実行します。以下のプロンプトを参考にしてください。
 
 ```bash
-node resource/normal_logger.js --n 50 --d 100
+node resource/normal_logger.js --n 50 --d 100 --p 4
 ```
 
-上記では 50 本の正常操作系列を 100ms 間隔で生成し、結果は `resource/logs/normal_log.csv` に追記されます。
+上記では 50 本の正常操作系列を 100ms 間隔で開始し、最大4並列で実行します。各操作間には標準で人間らしい遅延(約300〜800ms)が挿入され、結果は `resource/logs/normal_log.csv` に追記されます。
 
 ### 異常ログの取得
 
 異常操作系列を生成するには `resource/abnormal_logger.js` を使用します。
 
 ```bash
-node resource/abnormal_logger.js --n 50 --d 100
+node resource/abnormal_logger.js --n 50 --d 100 --p 4
 ```
-
-こちらは 50 本のランダムな異常シナリオを出力し、`resource/logs/abnormal_log.csv` に保存します。
+こちらは 50 本のランダムな異常シナリオを最大4並列で実行し、`resource/logs/abnormal_log.csv` に保存します。各操作も人間的な遅延を挟みます。
 
 ### シナリオ
 
@@ -96,8 +95,10 @@ python lstm_sequence_train.py --gpu 0
 |  | `--second_lstm` | `config.yaml` の `sequence_model.second_lstm` | 2 層目 LSTM を追加 |
 | resource/normal_logger.js | `--n` | `100` | 生成する正常系列数 |
 |  | `--d` | `100` | 各系列間の待ち時間(ms) |
+|  | `--p` | `1` | 同時実行数 |
 | resource/abnormal_logger.js | `--n` | `100` | 生成する異常系列数 |
 |  | `--d` | `100` | 各系列間の待ち時間(ms) |
+|  | `--p` | `1` | 同時実行数 |
 | test.js | `--n` | `100` | 正常系列数 |
 |  | `--d` | `100` | 正常 delay(ms) |
 |  | `--an` | `100` | 異常系列数 |

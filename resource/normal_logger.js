@@ -1,9 +1,10 @@
 /**
  * 正常操作系列を自動生成して normal_log.csv に保存
  *
- *  呼び出し: node normal_logger.js --n 50 --d 100
+ *  呼び出し: node normal_logger.js --n 50 --d 100 --p 4
  *     --n 系列数   (default 100)
  *     --d delay_ms (ms, default 100)
+ *     --p 同時実行数 (default 1)
  */
 
 const axios = require('axios');
@@ -39,10 +40,14 @@ const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'normal-logger';
+const HUMAN_MIN = 300;
+const HUMAN_MAX = 800;
+const humanDelay = () => sleep(randInt(HUMAN_MIN, HUMAN_MAX));
 function parseArgs() {
   const argv = process.argv.slice(2);
   let total = 100;
   let delay = 100;
+  let parallel = 1;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--n') {
       total = parseInt(argv[i + 1], 10) || total;
@@ -50,9 +55,12 @@ function parseArgs() {
     } else if (argv[i] === '--d') {
       delay = parseInt(argv[i + 1], 10) || delay;
       i++;
+    } else if (argv[i] === '--p') {
+      parallel = parseInt(argv[i + 1], 10) || parallel;
+      i++;
     }
   }
-  return { total, delay };
+  return { total, delay, parallel };
 }
 function extractPayload(token) {
   try {
@@ -88,6 +96,7 @@ async function stepLogin(userId, ip) {
   });
   const token = data.token;
   logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token, label: 'normal' });
+  await humanDelay();
   return { token, auth: {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -101,36 +110,42 @@ async function stepBrowse(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.get('/browse', auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 async function stepEdit(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.post('/edit', {}, auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 async function stepLogout(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.post('/logout', {}, auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 async function stepProfileView(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.get('/profile', auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/profile', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 async function stepProfileUpdate(userId, ip, token, auth) {
   const ts = new Date().toISOString();
   await api.post('/profile', { bio: 'hello' }, auth);
   logRow({ ts, userId, nowId: userId, endpoint: '/profile', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 async function stepSearch(userId, ip, token) {
   const ts = new Date().toISOString();
   await api.get('/search?q=test', { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
   logRow({ ts, userId, nowId: userId, endpoint: '/search', ip, token, label: 'normal' });
+  await humanDelay();
 }
 
 // ── 各ユースケース定義 ──────────────────────────
@@ -274,14 +289,18 @@ async function normalSequence(userId) {
 
 // ── メイン ───────────────────────────────────
 (async () => {
-  const { total, delay } = parseArgs();
+  const { total, delay, parallel } = parseArgs();
   console.log(`▶ 正常系列 ${total} 本 生成開始`);
 
+  const running = new Set();
   for (let i = 0; i < total; i++) {
     const uid = `user${String(i + 1).padStart(3, '0')}`;
-    await normalSequence(uid);
+    const p = normalSequence(uid).then(() => running.delete(p));
+    running.add(p);
+    if (running.size >= parallel) await Promise.race(running);
     await sleep(delay);
   }
+  await Promise.all(running);
   console.log(`完了：logs/normal_log.csv に保存済`);
   updateOperationLog();
 })();
