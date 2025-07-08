@@ -136,12 +136,41 @@ def a12_session_hijack():
     except requests.RequestException:
         pass
 
+from concurrent.futures import ThreadPoolExecutor
+from collections import deque
+import csv
+
+
+def _tail_lines(path, lines):
+    dq = deque(maxlen=lines)
+    with open(path, 'r') as f:
+        for line in f:
+            dq.append(line)
+    return list(dq)
+
+
+def _prepare_by_user(path):
+    with open(path, newline='') as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        rows = sorted(reader, key=lambda r: (r[1], r[0]))
+    out = path.replace('request_log.csv', 'request_log_by_user.csv')
+    with open(out, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        w.writerows(rows)
+    return out
+
+
 def print_log(lines=20, log_dir='resource/logs'):
     log = os.path.join(log_dir, 'request_log.csv')
     if os.path.exists(log):
-        with open(log) as f:
-            for l in f.readlines()[-lines:]:
-                print(l.strip())
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            tail_future = ex.submit(_tail_lines, log, lines)
+            sort_future = ex.submit(_prepare_by_user, log)
+            for line in tail_future.result():
+                print(line.strip())
+            sort_future.result()
 
 
 def main():

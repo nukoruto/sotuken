@@ -14,7 +14,15 @@ exports.runScenario = async (req, res) => {
   const puppeteer = require('puppeteer');
   const file = path.join(__dirname, '../scenarios', req.params.type, `${req.params.name}.json`);
   if (!fs.existsSync(file)) return res.status(404).end();
-  const { steps } = JSON.parse(fs.readFileSync(file));
+  const steps = await new Promise((resolve, reject) => {
+    let data = '';
+    const stream = fs.createReadStream(file, 'utf8');
+    stream.on('data', chunk => (data += chunk));
+    stream.on('end', () => {
+      try { resolve(JSON.parse(data).steps); } catch (e) { reject(e); }
+    });
+    stream.on('error', reject);
+  });
   const base = `http://localhost:${process.env.PORT || 3000}`;
   const b = await puppeteer.launch({ headless: true });
   const page = await b.newPage();
