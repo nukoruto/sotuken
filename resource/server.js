@@ -204,7 +204,7 @@ async function tailFile(lines) {
   const { size } = await fs.promises.stat(REQUEST_LOG);
   const chunk = 64 * 1024;
   const ranges = [];
-  for (let pos = size; pos > 0 && ranges.length < 5; pos -= chunk) {
+  for (let pos = size; pos > 0 && ranges.length < 100; pos -= chunk) {
     ranges.push({ start: Math.max(0, pos - chunk), end: pos - 1 });
   }
   const parts = await Promise.all(ranges.map(r => readChunk(r.start, r.end)));

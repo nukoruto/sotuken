@@ -1,8 +1,14 @@
 import argparse
 import csv
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
+from datetime import datetime
 import yaml
+
+try:
+    import matplotlib.pyplot as plt
+except Exception:  # pragma: no cover - matplotlib may be missing
+    plt = None
 
 # --- GPU / 設定ファイル オプション先読み ------------------------------
 pre_ap = argparse.ArgumentParser(add_help=False)
@@ -33,8 +39,9 @@ try:
     from tensorflow.keras.models import Sequential, load_model
     from tensorflow.keras.layers import Embedding, LSTM, Dense
     from tensorflow.keras.preprocessing.sequence import pad_sequences
+    from tensorflow.keras.callbacks import Callback
 except ImportError:  # pragma: no cover - tensorflow not installed
-    Sequential = load_model = Embedding = LSTM = Dense = pad_sequences = None
+    Sequential = load_model = Embedding = LSTM = Dense = pad_sequences = Callback = None
 
 # --- データ読み込み -----------------------------------------------------
 
@@ -74,6 +81,36 @@ def create_model(vocab_size, embedding_dim=32, lstm_units=32):
     return model
 
 
+class PlotCallback(Callback):
+    """学習中の損失をリアルタイム描画しファイル保存"""
+
+    def __init__(self, out_dir):
+        self.out_dir = out_dir
+        self.losses = []
+        self.val_losses = []
+        if plt:
+            plt.ion()
+            self.fig, self.ax = plt.subplots()
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        self.losses.append(logs.get('loss'))
+        self.val_losses.append(logs.get('val_loss'))
+        if not plt:
+            return
+        self.ax.cla()
+        self.ax.plot(range(1, epoch + 2), self.losses, label='loss')
+        if any(self.val_losses):
+            self.ax.plot(range(1, epoch + 2), self.val_losses, label='val_loss')
+        self.ax.set_xlabel('Epoch')
+        self.ax.set_ylabel('Loss')
+        self.ax.legend()
+        self.fig.tight_layout()
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+        self.fig.savefig(os.path.join(self.out_dir, 'training.png'))
+
+
 # --- メイン -------------------------------------------------------------
 
 def main():
@@ -97,6 +134,12 @@ def main():
     normal_path = cfg.get('data', {}).get('normal', args.normal)
     abnormal_path = cfg.get('data', {}).get('abnormal', args.abnormal)
     model_path = args.model or model_cfg.get('path', 'lstm_model.h5')
+
+    # 出力用ディレクトリ（日付と時間）
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    out_dir = os.path.splitext(model_path)[0] + '_' + timestamp
+    os.makedirs(out_dir, exist_ok=True)
+    model_path = os.path.join(out_dir, os.path.basename(model_path))
 
     embedding_dim = model_cfg.get('embedding_dim', 32)
     lstm_units = model_cfg.get('lstm_units', 32)
@@ -123,9 +166,30 @@ def main():
     else:
         model = create_model(len(vocab), embedding_dim, lstm_units)
 
-    model.fit(X_pad, y, epochs=epochs, batch_size=batch_size, validation_split=0.2)
+    callback = PlotCallback(out_dir)
+    model.fit(
+        X_pad,
+        y,
+        epochs=epochs,
+        batch_size=batch_size,
+        validation_split=0.2,
+        callbacks=[callback]
+    )
     model.save(model_path)
     print('モデル保存:', model_path)
+
+    # --- 評価 -----------------------------------------------------------
+    preds = (model.predict(X_pad) > 0.5).astype(int).reshape(-1)
+    pred_counts = Counter(preds)
+    true_counts = Counter(y)
+    accuracy = (preds == y).mean()
+    print(
+        f"予測: 正常 {pred_counts.get(0,0)}件, 異常 {pred_counts.get(1,0)}件"
+    )
+    print(
+        f"実際: 正常 {true_counts.get(0,0)}件, 異常 {true_counts.get(1,0)}件"
+    )
+    print(f"正答率: {accuracy:.4f}")
 
 
 if __name__ == '__main__':
