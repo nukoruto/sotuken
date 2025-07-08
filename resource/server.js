@@ -15,7 +15,7 @@ const { extractPayload } = require('./jwt_helper');
 
 const SECRET   = 'change_this_to_env_secret'; // 本運用では環境変数へ
 const PORT     = 3000;
-const LOG_DIR  = path.join(__dirname, 'logs');
+const LOG_DIR  = process.env.LOG_DIR || path.join(__dirname, 'logs');
 // 各リクエストの詳細ログは request_log.csv に保存
 const REQUEST_LOG = path.join(LOG_DIR, 'request_log.csv');
 
@@ -25,7 +25,9 @@ const MAP = {
   '/login':  { use_case: 'Login',       type: 'AUTH'   },
   '/logout': { use_case: 'Logout',      type: 'AUTH'   },
   '/browse': { use_case: 'ViewPage',    type: 'READ'   },
-  '/edit':   { use_case: 'EditContent', type: 'UPDATE' }
+  '/edit':   { use_case: 'EditContent', type: 'UPDATE' },
+  '/profile': { use_case: 'Profile',    type: 'UPDATE' },
+  '/search':  { use_case: 'Search',     type: 'READ' }
 };
 // ──────────────────────────────────────────────────────
 
@@ -35,7 +37,7 @@ const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
   .split(',')[0].trim();
 
 // ── 2. ログファイル準備 ───────────────────────────────
-if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR);
+if (!fs.existsSync(LOG_DIR))  fs.mkdirSync(LOG_DIR, { recursive: true });
 if (!fs.existsSync(REQUEST_LOG)) fs.writeFileSync(
   REQUEST_LOG,
   'timestamp,user_id,endpoint,use_case,type,ip,jwt_payload,label\n',
@@ -139,6 +141,42 @@ app.post('/edit', auth, (req, res) => {
   res.json({ message: 'Edit completed (dummy).' });
 });
 
+// GET /profile : 認証必須
+app.get('/profile', auth, (req, res) => {
+  writeLog({
+    userId: req.user.user_id,
+    endpoint: '/profile',
+    ip: getClientIP(req),
+    payload: req.user,
+    label: 'normal'
+  });
+  res.json({ profile: { user_id: req.user.user_id } });
+});
+
+// POST /profile : 認証必須
+app.post('/profile', auth, (req, res) => {
+  writeLog({
+    userId: req.user.user_id,
+    endpoint: '/profile',
+    ip: getClientIP(req),
+    payload: req.body,
+    label: 'normal'
+  });
+  res.json({ message: 'Profile updated.' });
+});
+
+// GET /search : 認証不要
+app.get('/search', (req, res) => {
+  writeLog({
+    userId: 'guest',
+    endpoint: '/search',
+    ip: getClientIP(req),
+    payload: req.query,
+    label: 'normal'
+  });
+  res.json({ results: [] });
+});
+
 // POST /logout : 認証必須
 app.post('/logout', auth, (req, res) => {
   writeLog({
@@ -149,6 +187,40 @@ app.post('/logout', auth, (req, res) => {
     label: 'normal'
   });
   res.json({ message: 'Logged out.' });
+});
+
+// ── ログ取得API ─────────────────────────────
+async function readChunk(start, end) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    const s = fs.createReadStream(REQUEST_LOG, { start, end, encoding: 'utf8' });
+    s.on('data', c => (data += c));
+    s.on('end', () => resolve(data));
+    s.on('error', reject);
+  });
+}
+
+async function tailFile(lines) {
+  const { size } = await fs.promises.stat(REQUEST_LOG);
+  const chunk = 64 * 1024;
+  const ranges = [];
+  for (let pos = size; pos > 0 && ranges.length < 100; pos -= chunk) {
+    ranges.push({ start: Math.max(0, pos - chunk), end: pos - 1 });
+  }
+  const parts = await Promise.all(ranges.map(r => readChunk(r.start, r.end)));
+  const data = parts.reverse().join('');
+  const arr = data.trim().split('\n');
+  return arr.slice(-lines);
+}
+
+app.get('/logs', async (req, res) => {
+  const n = parseInt(req.query.lines || '20', 10);
+  try {
+    const lines = await tailFile(n);
+    res.json({ lines });
+  } catch (err) {
+    res.status(500).json({ error: 'log_read_failed' });
+  }
 });
 
 // ── 5. サーバ起動 ────────────────────────────────────
