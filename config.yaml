@@ -1,0 +1,10 @@
+model:
+  embedding_dim: 32
+  lstm_units: 32
+  epochs: 10
+  batch_size: 8
+  path: lstm_model.h5
+data:
+  normal: resource/logs/normal_log.csv
+  abnormal: resource/logs/abnormal_log.csv
+GPU: null
