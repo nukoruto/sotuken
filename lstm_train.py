@@ -3,6 +3,18 @@ import csv
 import os
 from collections import defaultdict
 
+# --- GPU オプション先読み ---------------------------------------------
+pre_ap = argparse.ArgumentParser(add_help=False)
+pre_ap.add_argument('--gpu', type=int, default=None,
+                    help='利用するGPU番号。指定しない場合はCPUのみを使用')
+pre_args, _ = pre_ap.parse_known_args()
+if pre_args.gpu is None:
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    print('GPU を使用せずに学習を実行します')
+else:
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(pre_args.gpu)
+    print(f'GPU {pre_args.gpu} を使用して学習を実行します')
+
 try:
     from tensorflow.keras.models import Sequential, load_model
     from tensorflow.keras.layers import Embedding, LSTM, Dense
@@ -57,6 +69,8 @@ def main():
     ap.add_argument('--abnormal', default=os.path.join('resource', 'logs', 'abnormal_log.csv'),
                     help='異常ログCSVのパス')
     ap.add_argument('--model', default='lstm_model.h5', help='保存/読み込みするモデルパス')
+    ap.add_argument('--gpu', type=int, default=pre_args.gpu,
+                    help='利用するGPU番号。指定しない場合はCPUのみを使用')
     args = ap.parse_args()
 
     if Sequential is None:
