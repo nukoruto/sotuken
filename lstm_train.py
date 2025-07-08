@@ -121,6 +121,8 @@ def main():
     ap.add_argument('--abnormal', default=os.path.join('resource', 'logs', 'abnormal_log.csv'),
                     help='異常ログCSVのパス')
     ap.add_argument('--model', default=None, help='保存/読み込みするモデルパス')
+    ap.add_argument('--output-dir', default=None,
+                    help='学習結果を保存するディレクトリ')
     args = ap.parse_args()
 
     # YAML 設定の読み込み
@@ -135,9 +137,11 @@ def main():
     abnormal_path = cfg.get('data', {}).get('abnormal', args.abnormal)
     model_path = args.model or model_cfg.get('path', 'lstm_model.h5')
 
+    load_path = model_path  # 指定されたモデルパスをそのまま読み込みに使用
+
     # 出力用ディレクトリ（日付と時間）
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    out_dir = os.path.splitext(model_path)[0] + '_' + timestamp
+    out_dir = args.output_dir or os.path.splitext(model_path)[0] + '_' + timestamp
     os.makedirs(out_dir, exist_ok=True)
     model_path = os.path.join(out_dir, os.path.basename(model_path))
 
@@ -161,8 +165,8 @@ def main():
     max_len = max(len(s) for s in X)
     X_pad = pad_sequences(X, maxlen=max_len)
 
-    if os.path.exists(model_path):
-        model = load_model(model_path)
+    if os.path.exists(load_path):
+        model = load_model(load_path)
     else:
         model = create_model(len(vocab), embedding_dim, lstm_units)
 
