@@ -1,0 +1,11 @@
+{
+  "name": "mixOperations",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 3 } },
+    { "method": "GET", "url": "/api/forum/posts" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 4 } },
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "POST", "url": "/api/shop/pay", "body": { "orderId": 1 } }
+  ]
+}

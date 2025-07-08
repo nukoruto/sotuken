@@ -1,0 +1,10 @@
+{
+  "name": "paymentBeforeCart",
+  "steps": [
+    { "method": "POST", "url": "/api/shop/pay", "body": { "orderId": 1 } },
+    { "method": "GET", "url": "/api/shop/pay/1" },
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 2 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}

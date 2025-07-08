@@ -1,0 +1,10 @@
+{
+  "name": "quickCheckout",
+  "steps": [
+    { "method": "GET", "url": "/api/shop/products" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 7 } },
+    { "method": "POST", "url": "/api/shop/checkout" },
+    { "method": "POST", "url": "/api/shop/cart", "body": { "id": 8 } },
+    { "method": "POST", "url": "/api/shop/checkout" }
+  ]
+}
