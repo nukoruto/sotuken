@@ -63,10 +63,10 @@ python lstm_train.py --model my_model.h5 --output-dir runs/gpu --gpu 0
 
 ### 次ステップ予測
 
-各時点で次のエンドポイントを予測するシーケンス学習には `lstm_sequence_train.py` を使用します。
+各時点で次のエンドポイントを予測するシーケンス学習には `lstm_sequence_train.py` を使用します。主要なパラメータは `config.yaml` の `sequence_model` セクションにまとめられており、`--gpu` オプションでGPUを指定できます。
 
 ```bash
-python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_model.h5
+python lstm_sequence_train.py --gpu 0
 ```
 
 このモデルはワンホット入力を用い、各時刻ごとに利用可能なエンドポイントの分布を出力します。
@@ -86,12 +86,14 @@ python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_mod
 |  | `--abnormal` | `resource/logs/abnormal_log.csv` | 異常ログ CSV |
 |  | `--model` | `lstm_model.h5` | モデルファイル |
 |  | `--output-dir` | `<モデル名_日付>` | 学習結果保存先 |
-| lstm_sequence_train.py | `--log` | `resource/logs/normal_log.csv` | 学習用ログ |
-|  | `--model` | `seq_model.h5` | 保存するモデル |
-|  | `--epochs` | `20` | エポック数 |
-|  | `--units` | `100` | LSTM ユニット数 |
-|  | `--dropout` | `0.0` | Dropout 率 |
-|  | `--second_lstm` | `false` | 2 層目 LSTM を追加 |
+| lstm_sequence_train.py | `--gpu` | `None` または `config.yaml` の `GPU` | 使用 GPU |
+|  | `--config` | `config.yaml` | 設定ファイルパス |
+|  | `--log` | `config.yaml` の `data.sequence_log` | 学習用ログ |
+|  | `--model` | `config.yaml` の `sequence_model.path` | 保存するモデル |
+|  | `--epochs` | `config.yaml` の `sequence_model.epochs` | エポック数 |
+|  | `--units` | `config.yaml` の `sequence_model.units` | LSTM ユニット数 |
+|  | `--dropout` | `config.yaml` の `sequence_model.dropout` | Dropout 率 |
+|  | `--second_lstm` | `config.yaml` の `sequence_model.second_lstm` | 2 層目 LSTM を追加 |
 | resource/normal_logger.js | `[系列数]` | `100` | 生成する正常系列数 |
 |  | `[delay_ms]` | `100` | 各系列間の待ち時間(ms) |
 | resource/abnormal_logger.js | `[系列数]` | `100` | 生成する異常系列数 |
@@ -107,5 +109,11 @@ python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_mod
 |  | `model.path` | `lstm_model.h5` | モデルパス |
 |  | `data.normal` | `resource/logs/normal_log.csv` | 正常ログ CSV |
 |  | `data.abnormal` | `resource/logs/abnormal_log.csv` | 異常ログ CSV |
+|  | `data.sequence_log` | `resource/logs/normal_log.csv` | シーケンス学習用ログ |
+|  | `sequence_model.units` | `100` | シーケンス LSTM ユニット数 |
+|  | `sequence_model.dropout` | `0.0` | Dropout 率 |
+|  | `sequence_model.epochs` | `20` | シーケンス学習エポック数 |
+|  | `sequence_model.second_lstm` | `false` | 2 層目 LSTM 使用有無 |
+|  | `sequence_model.path` | `seq_model.h5` | シーケンスモデルパス |
 |  | `GPU` | `null` | 使用 GPU 番号 (無指定時 CPU) |
 
