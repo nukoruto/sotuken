@@ -1,9 +1,9 @@
 /**
  * 正常操作系列を自動生成して normal_log.csv に保存
  *
- *  呼び出し: node normal_logger.js [系列数] [delay_ms]
- *     系列数   : デフォルト 100
- *     delay_ms : 各系列間ウェイト (ms) デフォルト 100
+ *  呼び出し: node normal_logger.js --n 50 --d 100
+ *     --n 系列数   (default 100)
+ *     --d delay_ms (ms, default 100)
  */
 
 const axios = require('axios');
@@ -39,6 +39,21 @@ const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'normal-logger';
+function parseArgs() {
+  const argv = process.argv.slice(2);
+  let total = 100;
+  let delay = 100;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--n') {
+      total = parseInt(argv[i + 1], 10) || total;
+      i++;
+    } else if (argv[i] === '--d') {
+      delay = parseInt(argv[i + 1], 10) || delay;
+      i++;
+    }
+  }
+  return { total, delay };
+}
 function extractPayload(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -259,8 +274,7 @@ async function normalSequence(userId) {
 
 // ── メイン ───────────────────────────────────
 (async () => {
-  const total = parseInt(process.argv[2] || '100', 10);
-  const delay = parseInt(process.argv[3] || '100', 10);
+  const { total, delay } = parseArgs();
   console.log(`▶ 正常系列 ${total} 本 生成開始`);
 
   for (let i = 0; i < total; i++) {
