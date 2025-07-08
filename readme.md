@@ -53,3 +53,15 @@ python lstm_train.py --model my_model.h5 --gpu 0
 
 If `--gpu` is omitted, training runs on CPU only. Ensure TensorFlow with GPU
 support is installed.
+
+### Next Step Prediction
+
+For sequence-to-sequence style training that predicts the next endpoint at each step,
+use `lstm_sequence_train.py`:
+
+```bash
+python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_model.h5
+```
+
+This model uses one-hot encoded inputs and outputs a class distribution over the
+available endpoints for every time step.
