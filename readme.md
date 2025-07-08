@@ -1,68 +1,52 @@
-# Session Attack Tests
+# セッション攻撃テスト
 
-This repository contains a simple Node.js server and utilities for logging web session behaviour. `attack_patterns.py` demonstrates ten abnormal patterns (A1-A10) such as unauthenticated access, token reuse and spoofing.
+このリポジトリには簡易的な Node.js サーバーと、Web セッションの挙動をログ取得するユーティリティが含まれています。`attack_patterns.py` では認証なしアクセスやトークン再利用など、10種類の異常パターン (A1–A10) を実演します。
 
-## Usage
+## 使い方
 
-Install Node dependencies and the Python requirements:
+Node の依存モジュールと Python パッケージをインストールします。
 
 ```bash
 npm install
 pip install -r requirements.txt
 ```
 
-Run the attack sequence using npm:
+次に npm 経由で攻撃シーケンスを実行します。
 
 ```bash
 npm test
 ```
 
-Log output is written to `resource/logs/request_log.csv`.
+ログは `resource/logs/request_log.csv` に書き出されます。
 
-### Scenarios
+### シナリオ
 
-Normal and abnormal user flows for realistic web services are stored under
-`src/scenarios/`.  Normal scenarios simulate typical shopping and forum
-behaviour, while abnormal ones describe suspicious or out‑of‑order actions.
-These JSON files can be executed via the capture routes to generate additional
-operation logs for model training.  Over thirty scenarios are now provided,
-covering e‑commerce purchases, cart operations, forum posts, error cases and
-stress patterns.  The latest version adds `/profile` and `/search` endpoints for
-profile management and public keyword lookup.  Normal scenarios now include a
-flow visiting these endpoints, while abnormal scenarios test unauthenticated
-access and out‑of‑order profile updates.
+典型的な Web サービスの正常／異常フローを `src/scenarios/` 以下に用意しています。正常シナリオではショッピングやフォーラム利用を模擬し、異常シナリオでは認証抜けや順序違反などの動作を記述しています。これらの JSON ファイルをキャプチャ用ルートから実行することで、モデル学習用の操作ログを追加生成できます。現在は30以上のシナリオを収録しており、EC購入やカート操作、掲示板投稿、エラーケース、ストレスパターンを網羅しています。最新バージョンでは `/profile` と `/search` エンドポイントが追加され、正常シナリオではそれらを訪問する流れが含まれ、異常シナリオでは未認証アクセスや順序違反のプロフィール更新をテストします。
 
-### LSTM Training
+### LSTM 学習
 
-A simple TensorFlow based trainer is provided to learn normal vs abnormal
-operation sequences.  Use `lstm_train.py` to train or update the model:
+正常系列と異常系列を分類するための簡易 TensorFlow トレーナー `lstm_train.py` を用意しています。次のように実行してください。
 
 ```bash
 python lstm_train.py --model my_model.h5 --output-dir runs/exp1
 ```
 
-Normal and abnormal CSV logs from `resource/logs/` are used by default. Pass
-`--normal` or `--abnormal` to specify different files.  The model file
-specified with `--model` is loaded directly if it exists.  Use
-`--output-dir` to set a custom directory for saving new runs.
+標準では `resource/logs/` 内の正常・異常 CSV を読み込みます。`--normal` や `--abnormal` で別ファイルを指定可能です。`--model` で既存モデルを読み込み、`--output-dir` で学習結果の保存先を変更できます。
 
-To train with GPU acceleration, specify the GPU device number:
+GPU を用いる場合はデバイス番号を指定します。
 
 ```bash
 python lstm_train.py --model my_model.h5 --output-dir runs/gpu --gpu 0
 ```
 
-If `--gpu` is omitted, training runs on CPU only. Ensure TensorFlow with GPU
-support is installed.
+`--gpu` を省略した場合は CPU のみで学習します。GPU 対応 TensorFlow がインストールされていることを確認してください。
 
-### Next Step Prediction
+### 次ステップ予測
 
-For sequence-to-sequence style training that predicts the next endpoint at each step,
-use `lstm_sequence_train.py`:
+各時点で次のエンドポイントを予測するシーケンス学習には `lstm_sequence_train.py` を使用します。
 
 ```bash
 python lstm_sequence_train.py --log resource/logs/normal_log.csv --model seq_model.h5
 ```
 
-This model uses one-hot encoded inputs and outputs a class distribution over the
-available endpoints for every time step.
+このモデルはワンホット入力を用い、各時刻ごとに利用可能なエンドポイントの分布を出力します。
