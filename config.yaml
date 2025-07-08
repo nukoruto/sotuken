@@ -1,8 +1,8 @@
 model:
-  embedding_dim: 32
-  lstm_units: 32
-  epochs: 10
-  batch_size: 8
+  embedding_dim: 128
+  lstm_units: 100
+  epochs: 300
+  batch_size: 16
   path: lstm_model.h5
 data:
   normal: resource/logs/normal_log.csv
