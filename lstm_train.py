@@ -4,6 +4,7 @@ import os
 from collections import defaultdict, Counter
 from datetime import datetime
 import yaml
+import numpy as np
 
 try:
     import matplotlib.pyplot as plt
@@ -160,7 +161,7 @@ def main():
     all_seqs = normal_seqs + abnormal_seqs
     vocab = build_vocab(all_seqs)
     X = encode_sequences(all_seqs, vocab)
-    y = [0] * len(normal_seqs) + [1] * len(abnormal_seqs)
+    y = np.array([0] * len(normal_seqs) + [1] * len(abnormal_seqs), dtype='int32')
 
     max_len = max(len(s) for s in X)
     X_pad = pad_sequences(X, maxlen=max_len)
