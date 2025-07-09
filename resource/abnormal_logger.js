@@ -39,9 +39,19 @@ const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
  219,220,221,222];
 const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'abnormal-logger';
-const HUMAN_MIN = 300;
-const HUMAN_MAX = 800;
-const humanDelay = () => sleep(randInt(HUMAN_MIN, HUMAN_MAX));
+const DELAY_RANGES = {
+  '/login': [500, 1500],
+  '/logout': [500, 1000],
+  '/browse': [1000, 300000],
+  '/edit': [800, 5000],
+  '/profile': [1000, 120000],
+  '/search': [1000, 60000],
+  default: [300, 800]
+};
+const humanDelay = (endpoint = 'default') => {
+  const [min, max] = DELAY_RANGES[endpoint] || DELAY_RANGES.default;
+  return sleep(randInt(min, max));
+};
 function parseArgs() {
   const argv = process.argv.slice(2);
   let total = 100;
@@ -122,7 +132,7 @@ async function noTokenSequence(userId = 'unknown') {
   const ts = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
-  await humanDelay();
+  await humanDelay('/edit');
 }
 
 // 2b) 認証なしでプロフィール閲覧
@@ -131,7 +141,7 @@ async function unauthorizedProfileSequence(userId = 'unknown') {
   const ts = new Date().toISOString();
   try { await api.get('/profile', { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
-  await humanDelay();
+  await humanDelay('/profile');
 }
 
 // 3) 順序異常 (edit → login → logout)
@@ -140,7 +150,7 @@ async function reversedSequence(userId) {
   const ts1 = new Date().toISOString();
   try { await api.post('/edit', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/edit', ip, token: 'none', label: 'no_token' });
-  await humanDelay();
+  await humanDelay('/edit');
 
   const { data } = await api.post('/login', { user_id: userId }, {
     headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
@@ -165,7 +175,7 @@ async function profileBeforeLoginSequence(userId) {
   const ts1 = new Date().toISOString();
   try { await api.post('/profile', { bio: 'x' }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: ts1, userId: 'unknown', nowId: userId, endpoint: '/profile', ip, token: 'none', label: 'no_token' });
-  await humanDelay();
+  await humanDelay('/profile');
 
   const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
   const token = data.token;
@@ -207,7 +217,7 @@ async function tokenReuseSequence(nowId) {
     });
   } catch (_) {}
   logRow({ ts: t, userId: issuerId, nowId, endpoint: '/browse', ip, token, label: 'token_reuse' });
-  await humanDelay();
+  await humanDelay('/browse');
 }
 
 // 5) ログアウト後に同一トークンを再利用
@@ -260,7 +270,7 @@ async function missingUserIdSequence(nowId = 'unknown') {
     await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
   } catch (_) {}
   logRow({ ts, userId: 'unknown', nowId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
-  await humanDelay();
+  await humanDelay('/login');
 }
 
 // 8) 存在しないエンドポイントへのアクセス
@@ -297,10 +307,10 @@ async function ipSwitchSequence(userId) {
         const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
         registerToken(data.token, userId);
         logRow({ ts, userId, nowId: userId, endpoint: '/login', ip, token: data.token, label: 'rapid_login' });
-  await humanDelay();
+  await humanDelay('/login');
       } catch (_) {
         logRow({ ts, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'rapid_login' });
-  await humanDelay();
+  await humanDelay('/login');
       }
       await sleep(50);
     }
@@ -317,31 +327,31 @@ async function complexSequence(userId) {
   const t1 = new Date().toISOString();
   await api.get('/browse', auth);
   logRow({ ts: t1, userId, nowId: userId, endpoint: '/browse', ip, token, label: 'normal' });
-  await humanDelay();
+  await humanDelay('/browse');
 
   // ログアウト
   const t2 = new Date().toISOString();
   await api.post('/logout', {}, auth);
   logRow({ ts: t2, userId, nowId: userId, endpoint: '/logout', ip, token, label: 'normal' });
-  await humanDelay();
+  await humanDelay('/logout');
 
   // ログアウト済みトークンで操作
   const t3 = new Date().toISOString();
   try { await api.post('/edit', {}, auth); } catch (_) {}
   logRow({ ts: t3, userId, nowId: userId, endpoint: '/edit', ip, token, label: 'reuse_after_logout' });
-  await humanDelay();
+  await humanDelay('/edit');
 
   // user_id を送らずログイン試行
   const t4 = new Date().toISOString();
   try { await api.post('/login', {}, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } }); } catch (_) {}
   logRow({ ts: t4, userId: 'unknown', nowId: userId, endpoint: '/login', ip, token: 'none', label: 'missing_user_id' });
-  await humanDelay();
+  await humanDelay('/login');
 
   // 存在しないページへアクセス
   const t5 = new Date().toISOString();
   try { await api.get('/admin', auth); } catch (_) {}
   logRow({ ts: t5, userId, nowId: userId, endpoint: '/admin', ip, token, label: 'invalid_endpoint' });
-  await humanDelay();
+  await humanDelay('/admin');
 }
 
 
