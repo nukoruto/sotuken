@@ -43,13 +43,14 @@ const lastEndpoint = new Map();
 
 // logging fields (server.js と同一順)
 const FIELDS = [
-  'timestamp','epoch_ms','user_id','session_id','user_role','auth_method','ip',
-  'geo_location','user_agent','device_type','platform','method','endpoint',
-  'use_case','type','target_id','endpoint_group','referrer','api_version',
-  'status_code','response_time_ms','content_length','success','jwt_payload_sub',
-  'jwt_payload_exp','token_reuse_detected','login_state','time_since_login',
-  'actions_in_session','previous_action','next_action_expected','label',
-  'abnormal_type','severity','comment','debug_info'
+  'timestamp',
+  'session_id',
+  'ip',
+  'user_agent',
+  'jwt',
+  'method',
+  'endpoint',
+  'referrer'
 ];
 
 const MAP = {
@@ -145,44 +146,15 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
   }
   const now = Date.now();
   const session = token ? sessions.get(token) : null;
-  const payload = token ? decodePayload(token) : null;
   const log = {
     timestamp: new Date(start).toISOString(),
-    epoch_ms: start,
-    user_id: userId,
     session_id: token ? token.slice(-8) : 'guest',
-    user_role: getUserRole(userId),
-    auth_method: token ? 'jwt' : 'none',
     ip,
-    geo_location: lookupRegion(ip),
     user_agent: USER_AGENT,
-    device_type: /mobile/i.test(USER_AGENT) ? 'mobile' : 'pc',
-    platform: process.platform,
+    jwt: token || '',
     method: method.toUpperCase(),
     endpoint,
-    use_case: MAP[endpoint]?.use_case || 'unknown',
-    type: MAP[endpoint]?.type || 'unknown',
-    target_id: data && data.id ? data.id : '',
-    endpoint_group: endpoint.split('/')[1] || '',
-    referrer: headers.Referer || '',
-    api_version: API_VERSION,
-    status_code: res.status,
-    response_time_ms: now - start,
-    content_length: res.headers['content-length'] || 0,
-    success: res.status < 400,
-    jwt_payload_sub: payload ? (payload.sub || payload.user_id || '') : '',
-    jwt_payload_exp: payload ? payload.exp || '' : '',
-    token_reuse_detected: '',
-    login_state: token ? 'logged_in' : 'guest',
-    time_since_login: session ? now - session.loginTime : '',
-    actions_in_session: session ? session.actionCount : '',
-    previous_action: session ? session.lastAction : '',
-    next_action_expected: '',
-    label,
-    abnormal_type: abnormal_type || '',
-    severity: '',
-    comment: '',
-    debug_info: ''
+    referrer: headers.Referer || ''
   };
   logRow(log);
   lastEndpoint.set(userId, endpoint);
