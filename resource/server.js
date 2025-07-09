@@ -74,7 +74,9 @@ const MAP = {
 // ──────────────────────────────────────────────────────
 
 const app = express();
+// JSON および URL エンコード形式のボディをパース
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
   .split(',')[0].trim();
 
@@ -105,7 +107,7 @@ app.use((req, res, next) => {
       endpoint: req.path,
       use_case: MAP[req.path]?.use_case || 'unknown',
       type: MAP[req.path]?.type || 'unknown',
-      target_id: req.params.id || req.body?.id || req.query.id || '',
+      target_id: req.params?.id || req.body?.id || req.query?.id || '',
       endpoint_group: req.path.split('/')[1] || '',
       referrer: req.get('referer') || '',
       api_version: ((req.path.split('/')[1] || '').match(/^v\d+/) || [''])[0],
