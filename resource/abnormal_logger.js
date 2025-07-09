@@ -507,6 +507,10 @@ async function ipSwitchSequence(userId) {
 
 // 11) さまざまな操作を連結した複合異常
 async function complexSequence(userId) {
+  staleSessionSequence,
+  adminMultiLoginSequence,
+  rapidBrowseSequence,
+  invalidParamSequence
   const ip = randomIP();
   // 正常ログイン
   const token = await requestAndLog({
@@ -580,6 +584,61 @@ async function complexSequence(userId) {
   });
   await humanDelay('/admin');
 }
+// 12) 3年以上の継続セッション
+async function staleSessionSequence(userId) {
+  const ip = randomIP();
+  const past = Math.floor(Date.now()/1000) - 3*365*24*3600;
+  const token = jwt.sign({ user_id: userId, iat: past }, SECRET, { expiresIn: "4y" });
+  sessions.set(token, { loginTime: past*1000, actionCount: 1, lastAction: "Login" });
+  registerToken(token, userId);
+  await requestAndLog({
+    method: "get",
+    endpoint: "/browse",
+    token,
+    userId,
+    ip,
+    label: "stale_session",
+    abnormal_type: "stale_session"
+  });
+  await humanDelay("/browse");
+}
+
+// 13) 管理者アカウントの多重同時ログイン
+async function adminMultiLoginSequence(userId = "admin01") {
+  const ip1 = randomIP();
+  const token1 = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip: ip1, label: "admin_multi_login" });
+  registerToken(token1, userId);
+  await humanDelay("/login");
+  const ip2 = randomIP();
+  const token2 = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip: ip2, label: "admin_multi_login", abnormal_type: "admin_multi_login" });
+  registerToken(token2, userId);
+  await humanDelay("/login");
+}
+
+// 14) 短時間で大量ページアクセス
+async function rapidBrowseSequence(userId) {
+  const ip = randomIP();
+  const token = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip, label: "normal" });
+  registerToken(token, userId);
+  await humanDelay("/login");
+  for (let i=0; i<20; i++) {
+    await requestAndLog({ method: "get", endpoint: "/browse", token, userId, ip, label: "rapid_browse", abnormal_type: "rapid_browse" });
+    await sleep(50);
+  }
+}
+
+// 15) 異常なパラメータ値の連続リクエスト
+async function invalidParamSequence(userId) {
+  const ip = randomIP();
+  const token = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip, label: "normal" });
+  registerToken(token, userId);
+  await humanDelay("/login");
+  for (let i=0; i<3; i++) {
+    await requestAndLog({ method: "post", endpoint: "/edit", data: { id: -999999999*i }, token, userId, ip, label: "bad_param", abnormal_type: "bad_param" });
+    await sleep(100);
+  }
+}
+
 
 
 // 全異常パターンを配列で管理
@@ -596,7 +655,11 @@ const scenarios = [
   invalidEndpointSequence,
   ipSwitchSequence,
   rapidLoginSequence,
-  complexSequence
+  complexSequence,
+  staleSessionSequence,
+  adminMultiLoginSequence,
+  rapidBrowseSequence,
+  invalidParamSequence
 ];
 
 // ── メイン ───────────────────────────────────
