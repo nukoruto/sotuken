@@ -181,6 +181,9 @@ app.post('/login', (req, res) => {
   const payload = { user_id, iat: Date.now() };
   const token   = jwt.sign(payload, SECRET, { expiresIn: '1h' });
   SESSIONS.set(token, { loginTime: Date.now(), actionCount: 0, lastAction: 'LOGIN' });
+  // ログミドルウェアで正しい値を記録するために設定
+  req.user  = payload;
+  req.token = token;
   req.logLabel = 'normal';
   res.json({ token });
 });

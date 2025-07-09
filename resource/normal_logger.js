@@ -112,15 +112,20 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label 
     res = err.response || { status: 0, headers: {}, data: {} };
   }
   const now = Date.now();
-  const session = token ? sessions.get(token) : null;
-  const payload = token ? decodePayload(token) : null;
+
+  if (endpoint === '/login' && res.status < 400 && res.data.token) {
+    actualToken = res.data.token;
+  }
+
+  const session = actualToken ? sessions.get(actualToken) : null;
+  const payloadInitial = actualToken ? decodePayload(actualToken) : null;
   const log = {
     timestamp: new Date(start).toISOString(),
     epoch_ms: start,
     user_id: userId,
-    session_id: token ? token.slice(-8) : 'guest',
+    session_id: actualToken ? actualToken.slice(-8) : 'guest',
     user_role: '-',
-    auth_method: token ? 'jwt' : 'none',
+    auth_method: actualToken ? 'jwt' : 'none',
     ip,
     geo_location: '-',
     user_agent: USER_AGENT,
@@ -138,12 +143,12 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label 
     response_time_ms: now - start,
     content_length: res.headers['content-length'] || 0,
     success: res.status < 400,
-    jwt_payload_sub: payload ? (payload.sub || payload.user_id || '') : '',
-    jwt_payload_exp: payload ? payload.exp || '' : '',
+    jwt_payload_sub: payloadInitial ? (payloadInitial.sub || payloadInitial.user_id || '') : '',
+    jwt_payload_exp: payloadInitial ? payloadInitial.exp || '' : '',
     token_reuse_detected: '',
-    login_state: token ? 'logged_in' : 'guest',
-    time_since_login: session ? now - session.loginTime : '',
-    actions_in_session: session ? session.actionCount : '',
+    login_state: actualToken ? 'logged_in' : 'guest',
+    time_since_login: session ? now - session.loginTime : actualToken ? 0 : '',
+    actions_in_session: session ? session.actionCount : actualToken ? 0 : '',
     previous_action: session ? session.lastAction : '',
     next_action_expected: '',
     label,
@@ -153,18 +158,15 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label 
     debug_info: ''
   };
   logRow(log);
-  if (token) {
+  if (actualToken) {
     if (!session) {
-      sessions.set(token, { loginTime: start, actionCount: 1, lastAction: MAP[endpoint]?.use_case || endpoint });
+      sessions.set(actualToken, { loginTime: start, actionCount: 1, lastAction: MAP[endpoint]?.use_case || endpoint });
     } else {
       session.actionCount++;
       session.lastAction = MAP[endpoint]?.use_case || endpoint;
     }
   }
-  if (endpoint === '/login' && res.status < 400 && res.data.token) {
-    return res.data.token;
-  }
-  return token;
+  return actualToken;
 }
 
 // ── 基本操作 ──────────────────────────────────
