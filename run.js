@@ -1,8 +1,6 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-const pythonCmd = process.platform === 'win32' ? 'py' : 'python';
-
 function run(cmd, args = []) {
   return new Promise((resolve, reject) => {
     const p = spawn(cmd, args, { stdio: 'inherit' });
@@ -29,8 +27,7 @@ function run(cmd, args = []) {
     // 異常ログ生成
     await run('node', [path.join('resource', 'abnormal_logger.js'), '--n', '10', '--d', '50']);
 
-    // 学習と評価
-    await run(pythonCmd, ['lstm_train.py']);
+    // ディープラーニング学習ステップは MATLAB へ移行したため削除
   } finally {
     server.kill();
   }
