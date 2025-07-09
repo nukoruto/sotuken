@@ -1,6 +1,4 @@
-tensorflow>=2.12
 numpy>=2.3.1
 PyYAML
 PyJWT
-requests
-matplotlib
+requestsmatplotlib
