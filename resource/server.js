@@ -47,42 +47,14 @@ function getUserRole(user_id) {
 }
 
 const FIELDS = [
-  ['timestamp',          'timestamp'],
-  ['epoch_ms',           'epoch_ms'],
-  ['user_id',            'user_id'],
-  ['session_id',         'session_id'],
-  ['user_role',          'user_role'],
-  ['auth_method',        'auth_method'],
-  ['ip',                 'ip'],
-  ['geo_location',       'geo_location'],
-  ['user_agent',         'user_agent'],
-  ['device_type',        'device_type'],
-  ['platform',           'platform'],
-  ['method',             'method'],
-  ['endpoint',           'endpoint'],
-  ['use_case',           'use_case'],
-  ['type',               'type'],
-  ['target_id',          'target_id'],
-  ['endpoint_group',     'endpoint_group'],
-  ['referrer',           'referrer'],
-  ['api_version',        'api_version'],
-  ['status_code',        'status_code'],
-  ['response_time_ms',   'response_time_ms'],
-  ['content_length',     'content_length'],
-  ['success',            'success'],
-  ['jwt_payload.sub',    'jwt_payload_sub'],
-  ['jwt_payload.exp',    'jwt_payload_exp'],
-  ['token_reuse_detected','token_reuse_detected'],
-  ['login_state',        'login_state'],
-  ['time_since_login',   'time_since_login'],
-  ['actions_in_session', 'actions_in_session'],
-  ['previous_action',    'previous_action'],
-  ['next_action_expected','next_action_expected'],
-  ['label',              'label'],
-  ['abnormal_type',      'abnormal_type'],
-  ['severity',           'severity'],
-  ['comment',            'comment'],
-  ['debug_info',         'debug_info']
+  ['timestamp',  'timestamp'],
+  ['session_id', 'session_id'],
+  ['ip',         'ip'],
+  ['user_agent', 'user_agent'],
+  ['jwt',        'jwt'],
+  ['method',     'method'],
+  ['endpoint',   'endpoint'],
+  ['referrer',   'referrer']
 ];
 
 // ── 1. 抽象化マッピングテーブル ─────────────────────────
@@ -111,56 +83,18 @@ app.use((req, res, next) => {
     const now = Date.now();
     const ua = req.get('user-agent') || '-';
     const ip = getClientIP(req);
-    const payload = req.token ? extractPayload(req.token) : req.invalidPayload;
-    const session = req.token ? SESSIONS.get(req.token) : null;
-    const apiVersionHeader = req.get('api-version');
+    const token = req.token || (req.headers['authorization'] || '').split(' ')[1];
     const log = {
       timestamp: new Date(start).toISOString(),
-      epoch_ms: start,
-      user_id: req.user ? req.user.user_id : 'guest',
-      session_id: req.token ? req.token.slice(-8) : 'guest',
-      user_role: req.user && req.user.role ? req.user.role : '-',
-      auth_method: req.user ? 'jwt' : 'none',
+      session_id: token ? token.slice(-8) : 'guest',
       ip,
-      geo_location: lookupRegion(ip),
       user_agent: ua,
-      device_type: /mobile/i.test(ua) ? 'mobile' : 'pc',
-      platform: /Windows/i.test(ua) ? 'Windows'
-               : /Android/i.test(ua) ? 'Android'
-               : /Mac/i.test(ua) ? 'Mac'
-               : /Linux/i.test(ua) ? 'Linux' : '-',
+      jwt: token || '',
       method: req.method,
       endpoint: req.path,
-      use_case: MAP[req.path]?.use_case || 'unknown',
-      type: MAP[req.path]?.type || 'unknown',
-      target_id: req.params?.id || req.body?.id || req.query?.id || '',
-      endpoint_group: req.path.split('/')[1] || '',
-      referrer: req.get('referer') || '',
-      api_version: apiVersionHeader ||
-        ((req.path.split('/')[1] || '').match(/^v\d+/) || [''])[0] || API_VERSION,
-      status_code: res.statusCode,
-      response_time_ms: now - start,
-      content_length: res.get('content-length') || 0,
-      success: res.statusCode < 400,
-      jwt_payload_sub: payload ? (payload.sub || payload.user_id || '') : '',
-      jwt_payload_exp: payload ? payload.exp || '' : '',
-      token_reuse_detected: !!req.tokenReuse,
-      login_state: req.user ? 'logged_in' : 'guest',
-      time_since_login: session ? now - session.loginTime : '',
-      actions_in_session: session ? session.actionCount : '',
-      previous_action: session ? session.lastAction : '',
-      next_action_expected: '',
-      label: req.logLabel || 'unknown',
-      abnormal_type: req.abnormalType || '',
-      severity: req.severity || '',
-      comment: req.comment || '',
-      debug_info: req.debugInfo ? JSON.stringify(req.debugInfo) : ''
+      referrer: req.get('referer') || ''
     };
     writeLog(log);
-    if (session) {
-      session.actionCount++;
-      session.lastAction = MAP[req.path]?.use_case || req.path;
-    }
   });
   next();
 });
