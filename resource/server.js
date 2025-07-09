@@ -21,6 +21,30 @@ const REQUEST_LOG = path.join(LOG_DIR, 'request_log.csv');
 
 const SESSIONS = new Map();           // token -> {loginTime, actionCount, last}
 const REVOKED  = new Set();           // logout したトークン
+const API_VERSION = 'v1';
+
+const jpOctets = new Set([
+  43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
+  119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,
+  203,210,211,219,220,221,222
+]);
+
+function lookupRegion(ip) {
+  if (!ip) return '-';
+  const first = parseInt(ip.split('.')[0], 10);
+  if (jpOctets.has(first)) return 'JP';
+  if (first <= 126) return 'NA';
+  if (first <= 191) return 'EU';
+  if (first <= 223) return 'AP';
+  return '-';
+}
+
+function getUserRole(user_id) {
+  if (!user_id) return 'guest';
+  if (user_id.startsWith('admin')) return 'admin';
+  if (user_id.startsWith('mod')) return 'moderator';
+  return 'member';
+}
 
 const FIELDS = [
   ['timestamp',          'timestamp'],
@@ -86,8 +110,10 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const now = Date.now();
     const ua = req.get('user-agent') || '-';
+    const ip = getClientIP(req);
     const payload = req.token ? extractPayload(req.token) : req.invalidPayload;
     const session = req.token ? SESSIONS.get(req.token) : null;
+    const apiVersionHeader = req.get('api-version');
     const log = {
       timestamp: new Date(start).toISOString(),
       epoch_ms: start,
@@ -95,8 +121,8 @@ app.use((req, res, next) => {
       session_id: req.token ? req.token.slice(-8) : 'guest',
       user_role: req.user && req.user.role ? req.user.role : '-',
       auth_method: req.user ? 'jwt' : 'none',
-      ip: getClientIP(req),
-      geo_location: '-',
+      ip,
+      geo_location: lookupRegion(ip),
       user_agent: ua,
       device_type: /mobile/i.test(ua) ? 'mobile' : 'pc',
       platform: /Windows/i.test(ua) ? 'Windows'
@@ -110,7 +136,8 @@ app.use((req, res, next) => {
       target_id: req.params?.id || req.body?.id || req.query?.id || '',
       endpoint_group: req.path.split('/')[1] || '',
       referrer: req.get('referer') || '',
-      api_version: ((req.path.split('/')[1] || '').match(/^v\d+/) || [''])[0],
+      api_version: apiVersionHeader ||
+        ((req.path.split('/')[1] || '').match(/^v\d+/) || [''])[0] || API_VERSION,
       status_code: res.statusCode,
       response_time_ms: now - start,
       content_length: res.get('content-length') || 0,
@@ -180,7 +207,8 @@ function auth(req, res, next) {
 app.post('/login', (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-  const payload = { user_id, iat: Date.now() };
+  const role = getUserRole(user_id);
+  const payload = { user_id, role, iat: Date.now() };
   const token   = jwt.sign(payload, SECRET, { expiresIn: '1h' });
   SESSIONS.set(token, { loginTime: Date.now(), actionCount: 0, lastAction: 'LOGIN' });
   // ログミドルウェアで正しい値を記録するために設定

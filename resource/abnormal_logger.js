@@ -14,6 +14,32 @@ const jwt = require('jsonwebtoken');
 const updateOperationLog = require('./update_operation_log');
 const SECRET = 'change_this_to_env_secret';
 const LOG_FILE = path.join(__dirname, 'logs', 'abnormal_log.csv');
+const API_VERSION = 'v1';
+
+const jpOctets = new Set([
+  43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
+  119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,
+  203,210,211,219,220,221,222
+]);
+
+function lookupRegion(ip) {
+  if (!ip) return '-';
+  const first = parseInt(ip.split('.')[0], 10);
+  if (jpOctets.has(first)) return 'JP';
+  if (first <= 126) return 'NA';
+  if (first <= 191) return 'EU';
+  if (first <= 223) return 'AP';
+  return '-';
+}
+
+function getUserRole(user_id) {
+  if (!user_id) return 'guest';
+  if (user_id.startsWith('admin')) return 'admin';
+  if (user_id.startsWith('mod')) return 'moderator';
+  return 'member';
+}
+
+const lastEndpoint = new Map();
 
 // logging fields (server.js と同一順)
 const FIELDS = [
@@ -45,10 +71,10 @@ const api = axios.create({ baseURL: 'http://localhost:3000', timeout: 5000 });
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const jpOctets = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
+const jpOctetList = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
  119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,203,210,211,
  219,220,221,222];
-const randomIP = () => [rand(jpOctets), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
+const randomIP = () => [rand(jpOctetList), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'abnormal-logger';
 const DELAY_RANGES = {
   '/login': [500, 1500],
@@ -106,7 +132,9 @@ function logRow(obj) {
 }
 
 async function requestAndLog({ method, endpoint, data, token, userId, ip, label, abnormal_type }) {
-  const headers = { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT };
+  const headers = { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT, 'API-Version': API_VERSION };
+  const prev = lastEndpoint.get(userId);
+  if (prev) headers.Referer = `http://localhost:3000${prev}`;
   if (token) headers.Authorization = `Bearer ${token}`;
   const start = Date.now();
   let res;
@@ -123,10 +151,10 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
     epoch_ms: start,
     user_id: userId,
     session_id: token ? token.slice(-8) : 'guest',
-    user_role: '-',
+    user_role: getUserRole(userId),
     auth_method: token ? 'jwt' : 'none',
     ip,
-    geo_location: '-',
+    geo_location: lookupRegion(ip),
     user_agent: USER_AGENT,
     device_type: /mobile/i.test(USER_AGENT) ? 'mobile' : 'pc',
     platform: process.platform,
@@ -136,8 +164,8 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
     type: MAP[endpoint]?.type || 'unknown',
     target_id: data && data.id ? data.id : '',
     endpoint_group: endpoint.split('/')[1] || '',
-    referrer: '',
-    api_version: ((endpoint.split('/')[1] || '').match(/^v\d+/) || [''])[0],
+    referrer: headers.Referer || '',
+    api_version: API_VERSION,
     status_code: res.status,
     response_time_ms: now - start,
     content_length: res.headers['content-length'] || 0,
@@ -157,6 +185,7 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
     debug_info: ''
   };
   logRow(log);
+  lastEndpoint.set(userId, endpoint);
   if (token) {
     if (!session) {
       sessions.set(token, { loginTime: start, actionCount: 1, lastAction: MAP[endpoint]?.use_case || endpoint });
@@ -176,8 +205,16 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
 async function invalidTokenSequence(userId) {
   const ip = randomIP();
   const { data } = await api.post('/login', { user_id: userId }, {
-    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+    headers: {
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT,
+      'API-Version': API_VERSION,
+      'Referer': lastEndpoint.get(userId)
+        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        : ''
+    }
   });
+  lastEndpoint.set(userId, '/login');
   // 発行された正規トークンを記録
   registerToken(data.token, userId);
   const badToken = data.token.slice(0, -1) + 'x';
@@ -199,7 +236,7 @@ async function noTokenSequence(userId = 'unknown') {
   await requestAndLog({
     method: 'post',
     endpoint: '/edit',
-    data: {},
+    data: { id: randInt(1, 1000) },
     token: null,
     userId: 'unknown',
     ip,
@@ -230,7 +267,7 @@ async function reversedSequence(userId) {
   await requestAndLog({
     method: 'post',
     endpoint: '/edit',
-    data: {},
+    data: { id: randInt(1, 1000) },
     token: null,
     userId: 'unknown',
     ip,
@@ -313,8 +350,14 @@ async function tokenReuseSequence(nowId) {
     issuerId = `victim_for_${nowId}`;
     const ip = randomIP();
     const { data } = await api.post('/login', { user_id: issuerId }, {
-      headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+      headers: {
+        'X-Forwarded-For': ip,
+        'User-Agent': USER_AGENT,
+        'API-Version': API_VERSION,
+        'Referer': ''
+      }
     });
+    lastEndpoint.set(issuerId, '/login');
     token = data.token;
     registerToken(token, issuerId);
   } else {
@@ -338,8 +381,16 @@ async function tokenReuseSequence(nowId) {
 async function reuseAfterLogoutSequence(userId) {
   const ip = randomIP();
   const { data } = await api.post('/login', { user_id: userId }, {
-    headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT }
+    headers: {
+      'X-Forwarded-For': ip,
+      'User-Agent': USER_AGENT,
+      'API-Version': API_VERSION,
+      'Referer': lastEndpoint.get(userId)
+        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        : ''
+    }
   });
+  lastEndpoint.set(userId, '/login');
   const token = data.token;
   registerToken(token, userId);
   await requestAndLog({
@@ -400,7 +451,15 @@ async function missingUserIdSequence(nowId = 'unknown') {
 // 8) 存在しないエンドポイントへのアクセス
 async function invalidEndpointSequence(userId) {
   const ip = randomIP();
-  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } });
+  const { data } = await api.post('/login', { user_id: userId }, { headers: {
+    'X-Forwarded-For': ip,
+    'User-Agent': USER_AGENT,
+    'API-Version': API_VERSION,
+    'Referer': lastEndpoint.get(userId)
+      ? `http://localhost:3000${lastEndpoint.get(userId)}`
+      : ''
+  } });
+  lastEndpoint.set(userId, '/login');
   const token = data.token;
   registerToken(token, userId);
   await requestAndLog({
@@ -417,7 +476,17 @@ async function invalidEndpointSequence(userId) {
 // 9) IP を切り替えて同一トークンを使用
 async function ipSwitchSequence(userId) {
   const ip1 = randomIP();
-  const { data } = await api.post('/login', { user_id: userId }, { headers: { 'X-Forwarded-For': ip1, 'User-Agent': USER_AGENT } });
+  const { data } = await api.post('/login', { user_id: userId }, {
+    headers: {
+      'X-Forwarded-For': ip1,
+      'User-Agent': USER_AGENT,
+      'API-Version': API_VERSION,
+      'Referer': lastEndpoint.get(userId)
+        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        : ''
+    }
+  });
+  lastEndpoint.set(userId, '/login');
   const token = data.token;
   registerToken(token, userId);
   const ip2 = randomIP();
@@ -505,7 +574,7 @@ async function complexSequence(userId) {
   await requestAndLog({
     method: 'post',
     endpoint: '/edit',
-    data: {},
+    data: { id: randInt(1, 1000) },
     token,
     userId,
     ip,
