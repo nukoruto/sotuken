@@ -59,3 +59,13 @@ node resource/abnormal_logger.js --n 50 --d 100 --p 4
 |  | `--an` | `100` | 異常系列数 |
 |  | `--ad` | `100` | 異常 delay(ms) |
 
+
+### MATLAB 用前処理
+
+取得したCSVログは `resource/preprocess_log_to_mat.py` で MATLAB 向けの `.mat` ファイルへ変換できます。
+
+```bash
+python resource/preprocess_log_to_mat.py resource/logs/normal_log.csv
+```
+
+`-o` オプションで出力ファイル名を指定可能です。ログをセッション単位の数値系列へ整形し、エンドポイントとメソッドのカテゴリ情報を含めて保存します。
