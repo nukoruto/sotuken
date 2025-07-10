@@ -23,21 +23,7 @@ const SESSIONS = new Map();           // token -> {loginTime, actionCount, last}
 const REVOKED  = new Set();           // logout したトークン
 const API_VERSION = 'v1';
 
-const jpOctets = new Set([
-  43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
-  119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,
-  203,210,211,219,220,221,222
-]);
-
-function lookupRegion(ip) {
-  if (!ip) return '-';
-  const first = parseInt(ip.split('.')[0], 10);
-  if (jpOctets.has(first)) return 'JP';
-  if (first <= 126) return 'NA';
-  if (first <= 191) return 'EU';
-  if (first <= 223) return 'AP';
-  return '-';
-}
+// IPアドレスは保管しないので、地域判定関連の処理を削除
 
 function getUserRole(user_id) {
   if (!user_id) return 'guest';
@@ -49,7 +35,6 @@ function getUserRole(user_id) {
 const FIELDS = [
   ['timestamp',  'timestamp'],
   ['session_id', 'session_id'],
-  ['ip',         'ip'],
   ['user_agent', 'user_agent'],
   ['jwt',        'jwt'],
   ['method',     'method'],
@@ -73,6 +58,7 @@ const app = express();
 // JSON および URL エンコード形式のボディをパース
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+// IPは記録しないので取得ロジックを継続するだけ
 const getClientIP = req => (req.headers['x-forwarded-for'] || req.ip)
   .split(',')[0].trim();
 
@@ -82,12 +68,11 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const now = Date.now();
     const ua = req.get('user-agent') || '-';
-    const ip = getClientIP(req);
+    const ip = getClientIP(req); // 取得のみ
     const token = req.token || (req.headers['authorization'] || '').split(' ')[1];
     const log = {
       timestamp: new Date(start).toISOString(),
       session_id: token ? token.slice(-8) : 'guest',
-      ip,
       user_agent: ua,
       jwt: token || '',
       method: req.method,

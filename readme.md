@@ -16,7 +16,7 @@ npm install
 npm test
 ```
 
-このコマンドではサーバを起動し、正常ログと異常ログを取得します。生成されたログは `resource/logs/normal_log.csv` と `resource/logs/abnormal_log.csv` に保存されます。
+このコマンドではサーバを起動し、正常ログと異常ログを取得します。生成されたログは `resource/logs/normal_log.csv` と `resource/logs/abnormal_log.csv` に保存されます。IPアドレスはプライバシー保護のため記録されません。
 
 ### 正常ログの取得
 

@@ -14,21 +14,7 @@ const updateOperationLog = require('./update_operation_log');
 const LOG_FILE = path.join(__dirname, 'logs', 'normal_log.csv');
 const API_VERSION = 'v1';
 
-const jpOctets = new Set([
-  43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,118,
-  119,120,121,122,123,124,125,126,133,150,153,175,180,182,183,202,
-  203,210,211,219,220,221,222
-]);
-
-function lookupRegion(ip) {
-  if (!ip) return '-';
-  const first = parseInt(ip.split('.')[0], 10);
-  if (jpOctets.has(first)) return 'JP';
-  if (first <= 126) return 'NA';
-  if (first <= 191) return 'EU';
-  if (first <= 223) return 'AP';
-  return '-';
-}
+// IPによる地域判定は使用しないため削除
 
 function getUserRole(user_id) {
   if (!user_id) return 'guest';
@@ -39,11 +25,10 @@ function getUserRole(user_id) {
 
 const lastEndpoint = new Map();
 
-// logging fields (server.js と同一順)
+// logging fields (IP は記録しない)
 const FIELDS = [
   'timestamp',
   'session_id',
-  'ip',
   'user_agent',
   'jwt',
   'method',
@@ -150,7 +135,6 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label 
   const log = {
     timestamp: new Date(start).toISOString(),
     session_id: actualToken ? actualToken.slice(-8) : 'guest',
-    ip,
     user_agent: USER_AGENT,
     jwt: actualToken || '',
     method: method.toUpperCase(),
