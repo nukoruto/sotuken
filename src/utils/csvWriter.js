@@ -12,7 +12,6 @@ function getCsvWriter() {
     header: [
       { id: 'ts',         title: 'ts' },
       { id: 'session_id', title: 'session_id' },
-      { id: 'ip',         title: 'ip' },
       { id: 'user_agent', title: 'user_agent' },
       { id: 'jwt',        title: 'jwt' },
       { id: 'method',     title: 'method' },

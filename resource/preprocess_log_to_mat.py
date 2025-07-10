@@ -25,13 +25,14 @@ def preprocess(df):
     method_codes, method_uniques = pd.factorize(df["method"])
     df["method_code"] = method_codes
 
-    def ip_to_int(x):
-        try:
-            return int(ipaddress.ip_address(x))
-        except Exception:
-            return -1
+    if "ip" in df.columns:
+        def ip_to_int(x):
+            try:
+                return int(ipaddress.ip_address(x))
+            except Exception:
+                return -1
 
-    df["ip_int"] = df["ip"].apply(ip_to_int)
+        df["ip_int"] = df["ip"].apply(ip_to_int)
 
     seq_series = df.groupby("session_id")["endpoint_code"].apply(lambda x: np.array(x, dtype=np.int32))
     sequences = seq_series.tolist()
