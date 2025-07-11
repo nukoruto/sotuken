@@ -63,17 +63,68 @@ const jpOctetList = [43,49,58,59,60,61,101,103,106,110,111,112,113,114,115,116,1
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 const randomIP = () => [rand(jpOctetList), randInt(0,255), randInt(0,255), randInt(1,254)].join('.');
 const USER_AGENT = 'normal-logger';
-const DELAY_RANGES = {
-  '/login': [500, 1500],
-  '/logout': [500, 1000],
-  '/browse': [1000, 300000],
-  '/edit': [800, 5000],
-  '/profile': [1000, 120000],
-  '/search': [1000, 60000],
+// ── 遅延設定 ────────────────────────────────
+// エンドポイント単位の遅延幅
+const ENDPOINT_DELAY = {
+  'POST /login': [500, 1500],
+  'POST /logout': [500, 1000],
+  'GET /browse': [1000, 300000],
+  'POST /edit': [800, 5000],
+  'GET /profile': [1000, 120000],
+  'POST /profile': [800, 5000],
+  'GET /search': [1000, 60000],
   default: [300, 800]
 };
-const humanDelay = (endpoint = 'default') => {
-  const [min, max] = DELAY_RANGES[endpoint] || DELAY_RANGES.default;
+
+// 抽象カテゴリ単位の遅延幅
+const CATEGORY_DELAY = {
+  AUTH: [500, 1500],
+  READ: [500, 3000],
+  UPDATE: [500, 5000],
+  COMMIT: [800, 5000],
+  default: [300, 800]
+};
+
+// エンドポイント→カテゴリ対応表
+const CATEGORY_MAP = [
+  { method: 'POST', pattern: '/login', category: 'AUTH' },
+  { method: 'POST', pattern: '/logout', category: 'AUTH' },
+  { method: 'GET',  pattern: '/api/shop/products', category: 'READ' },
+  { method: 'GET',  pattern: '/api/shop/cart', category: 'READ' },
+  { method: 'GET',  pattern: '/api/shop/orders', category: 'READ' },
+  { method: 'GET',  pattern: '/api/shop/orders/:id', category: 'READ' },
+  { method: 'GET',  pattern: '/api/shop/pay/:id', category: 'READ' },
+  { method: 'GET',  pattern: '/api/forum/posts', category: 'READ' },
+  { method: 'GET',  pattern: '/browse', category: 'READ' },
+  { method: 'GET',  pattern: '/profile', category: 'READ' },
+  { method: 'GET',  pattern: '/search', category: 'READ' },
+  { method: 'POST', pattern: '/api/shop/cart', category: 'UPDATE' },
+  { method: 'DELETE', pattern: '/api/shop/cart/:id', category: 'UPDATE' },
+  { method: 'POST', pattern: '/api/forum/posts', category: 'UPDATE' },
+  { method: 'POST', pattern: '/edit', category: 'UPDATE' },
+  { method: 'POST', pattern: '/profile', category: 'UPDATE' },
+  { method: 'POST', pattern: '/api/shop/checkout', category: 'COMMIT' },
+  { method: 'POST', pattern: '/api/shop/pay', category: 'COMMIT' }
+];
+
+function endpointToCategory(method, url) {
+  for (const { method: m, pattern, category } of CATEGORY_MAP) {
+    if (m !== method.toUpperCase()) continue;
+    const regex = new RegExp('^' + pattern.replace(/:\w+/g, '[^/]+') + '$');
+    if (regex.test(url)) return category;
+  }
+  return 'UNKNOWN';
+}
+
+let mode = 2; // 1: category, 2: endpoint
+const humanDelay = (method = 'GET', endpoint = 'default') => {
+  if (mode === 1) {
+    const cat = endpointToCategory(method, endpoint);
+    const [min, max] = CATEGORY_DELAY[cat] || CATEGORY_DELAY.default;
+    return sleep(randInt(min, max));
+  }
+  const key = `${method.toUpperCase()} ${endpoint}`;
+  const [min, max] = ENDPOINT_DELAY[key] || ENDPOINT_DELAY.default;
   return sleep(randInt(min, max));
 };
 function parseArgs() {
@@ -81,6 +132,7 @@ function parseArgs() {
   let total = 100;
   let delay = 100;
   let parallel = 1;
+  mode = 2;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--n') {
       total = parseInt(argv[i + 1], 10) || total;
@@ -90,6 +142,10 @@ function parseArgs() {
       i++;
     } else if (argv[i] === '--p') {
       parallel = parseInt(argv[i + 1], 10) || parallel;
+      i++;
+    } else if (argv[i] === '--mode') {
+      const m = parseInt(argv[i + 1], 10);
+      if (m === 1 || m === 2) mode = m;
       i++;
     }
   }
@@ -165,7 +221,7 @@ async function stepLogin(userId, ip) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/login');
+  await humanDelay('POST', '/login');
   return { token, auth: { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } } };
 }
 
@@ -178,7 +234,7 @@ async function stepBrowse(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/browse');
+  await humanDelay('GET', '/browse');
 }
 
 async function stepEdit(userId, ip, token, auth) {
@@ -191,7 +247,7 @@ async function stepEdit(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/edit');
+  await humanDelay('POST', '/edit');
 }
 
 async function stepLogout(userId, ip, token, auth) {
@@ -204,7 +260,7 @@ async function stepLogout(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/logout');
+  await humanDelay('POST', '/logout');
 }
 
 async function stepProfileView(userId, ip, token, auth) {
@@ -216,7 +272,7 @@ async function stepProfileView(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/profile');
+  await humanDelay('GET', '/profile');
 }
 
 async function stepProfileUpdate(userId, ip, token, auth) {
@@ -229,7 +285,7 @@ async function stepProfileUpdate(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/profile');
+  await humanDelay('POST', '/profile');
 }
 
 async function stepSearch(userId, ip, token) {
@@ -241,7 +297,7 @@ async function stepSearch(userId, ip, token) {
     ip,
     label: 'normal'
   });
-  await humanDelay('/search');
+  await humanDelay('GET', '/search');
 }
 
 // ── 各ユースケース定義 ──────────────────────────
