@@ -50,7 +50,17 @@ const MAP = {
   '/browse': { use_case: 'ViewPage',    type: 'READ'   },
   '/edit':   { use_case: 'EditContent', type: 'UPDATE' },
   '/profile': { use_case: 'Profile',    type: 'UPDATE' },
-  '/search':  { use_case: 'Search',     type: 'READ' }
+  '/search':  { use_case: 'Search',     type: 'READ' },
+  '/api/shop/products': { use_case: 'ProductList', type: 'READ' },
+  'POST /api/shop/cart': { use_case: 'CartOp', type: 'UPDATE' },
+  'DELETE /api/shop/cart/:id': { use_case: 'CartOp', type: 'UPDATE' },
+  '/api/shop/orders': { use_case: 'OrderList', type: 'READ' },
+  '/api/shop/orders/:id': { use_case: 'OrderDetail', type: 'READ' },
+  '/api/shop/pay/:id': { use_case: 'PayStatus', type: 'READ' },
+  'GET /api/forum/posts': { use_case: 'Forum', type: 'READ' },
+  'POST /api/forum/posts': { use_case: 'Forum', type: 'UPDATE' },
+  '/api/shop/checkout': { use_case: 'Checkout', type: 'COMMIT' },
+  '/api/shop/pay': { use_case: 'Payment', type: 'COMMIT' }
 };
 // ──────────────────────────────────────────────────────
 
