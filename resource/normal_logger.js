@@ -76,6 +76,20 @@ const ENDPOINT_DELAY = {
   default: [300, 800]
 };
 
+// 遷移(前エンドポイント -> 次エンドポイント)ごとの遅延幅
+const ENDPOINT_TRANSITION_DELAY = {
+  'POST /login -> GET /browse': [800, 3000],
+  'POST /login -> POST /edit': [800, 2000],
+  'POST /login -> POST /logout': [500, 1000],
+  'GET /browse -> POST /edit': [800, 2000],
+  'POST /edit -> GET /browse': [800, 2000],
+  'GET /browse -> POST /logout': [800, 1500],
+  'POST /edit -> POST /logout': [800, 1500],
+  'GET /profile -> POST /profile': [800, 2000],
+  'POST /profile -> GET /search': [1000, 3000],
+  'GET /search -> POST /logout': [800, 1500]
+};
+
 // 抽象カテゴリ単位の遅延幅
 const CATEGORY_DELAY = {
   AUTH: [500, 1500],
@@ -83,6 +97,19 @@ const CATEGORY_DELAY = {
   UPDATE: [500, 5000],
   COMMIT: [800, 5000],
   default: [300, 800]
+};
+
+// 遷移(前カテゴリ -> 次カテゴリ)ごとの遅延幅
+const CATEGORY_TRANSITION_DELAY = {
+  'AUTH -> READ': [800, 3000],
+  'AUTH -> UPDATE': [800, 2000],
+  'AUTH -> AUTH': [500, 1000],
+  'READ -> UPDATE': [800, 2000],
+  'READ -> READ': [1000, 300000],
+  'READ -> AUTH': [800, 1500],
+  'UPDATE -> READ': [800, 2000],
+  'UPDATE -> AUTH': [800, 1500],
+  'UPDATE -> UPDATE': [800, 5000]
 };
 
 // エンドポイント→カテゴリ対応表
@@ -117,14 +144,23 @@ function endpointToCategory(method, url) {
 }
 
 let mode = 2; // 1: category, 2: endpoint
-const humanDelay = (method = 'GET', endpoint = 'default') => {
+const humanDelay = (method = 'GET', endpoint = 'default', prev = null) => {
   if (mode === 1) {
     const cat = endpointToCategory(method, endpoint);
-    const [min, max] = CATEGORY_DELAY[cat] || CATEGORY_DELAY.default;
+    const prevCat = prev ? endpointToCategory(prev.method, prev.endpoint) : 'NONE';
+    const key = `${prevCat} -> ${cat}`;
+    const [min, max] =
+      CATEGORY_TRANSITION_DELAY[key] ||
+      CATEGORY_DELAY[cat] ||
+      CATEGORY_DELAY.default;
     return sleep(randInt(min, max));
   }
-  const key = `${method.toUpperCase()} ${endpoint}`;
-  const [min, max] = ENDPOINT_DELAY[key] || ENDPOINT_DELAY.default;
+  const prevKey = prev ? `${prev.method} ${prev.endpoint}` : 'NONE default';
+  const key = `${prevKey} -> ${method.toUpperCase()} ${endpoint}`;
+  const [min, max] =
+    ENDPOINT_TRANSITION_DELAY[key] ||
+    ENDPOINT_DELAY[`${method.toUpperCase()} ${endpoint}`] ||
+    ENDPOINT_DELAY.default;
   return sleep(randInt(min, max));
 };
 function parseArgs() {
@@ -172,7 +208,8 @@ function logRow(obj) {
 async function requestAndLog({ method, endpoint, data, token, userId, ip, label }) {
   const headers = { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT, 'API-Version': API_VERSION };
   const prev = lastEndpoint.get(userId);
-  if (prev) headers.Referer = `http://localhost:3000${prev}`;
+  if (prev) headers.Referer = `http://localhost:3000${prev.endpoint}`;
+  if (prev) await humanDelay(method, endpoint, prev);
   if (token) headers.Authorization = `Bearer ${token}`;
   const start = Date.now();
   let res;
@@ -198,7 +235,7 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label 
     referrer: headers.Referer || ''
   };
   logRow(log);
-  lastEndpoint.set(userId, endpoint);
+  lastEndpoint.set(userId, { method: method.toUpperCase(), endpoint });
   if (actualToken) {
     if (!session) {
       sessions.set(actualToken, { loginTime: start, actionCount: 1, lastAction: MAP[endpoint]?.use_case || endpoint });
@@ -221,7 +258,6 @@ async function stepLogin(userId, ip) {
     ip,
     label: 'normal'
   });
-  await humanDelay('POST', '/login');
   return { token, auth: { headers: { Authorization: `Bearer ${token}`, 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT } } };
 }
 
@@ -234,7 +270,6 @@ async function stepBrowse(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('GET', '/browse');
 }
 
 async function stepEdit(userId, ip, token, auth) {
@@ -247,7 +282,6 @@ async function stepEdit(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('POST', '/edit');
 }
 
 async function stepLogout(userId, ip, token, auth) {
@@ -260,7 +294,6 @@ async function stepLogout(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('POST', '/logout');
 }
 
 async function stepProfileView(userId, ip, token, auth) {
@@ -272,7 +305,6 @@ async function stepProfileView(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('GET', '/profile');
 }
 
 async function stepProfileUpdate(userId, ip, token, auth) {
@@ -285,7 +317,6 @@ async function stepProfileUpdate(userId, ip, token, auth) {
     ip,
     label: 'normal'
   });
-  await humanDelay('POST', '/profile');
 }
 
 async function stepSearch(userId, ip, token) {
@@ -297,7 +328,6 @@ async function stepSearch(userId, ip, token) {
     ip,
     label: 'normal'
   });
-  await humanDelay('GET', '/search');
 }
 
 // ── 各ユースケース定義 ──────────────────────────

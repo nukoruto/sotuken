@@ -75,12 +75,39 @@ const ENDPOINT_DELAY = {
   default: [300, 800]
 };
 
+// 遷移(前エンドポイント -> 次エンドポイント)ごとの遅延幅
+const ENDPOINT_TRANSITION_DELAY = {
+  'POST /login -> GET /browse': [800, 3000],
+  'POST /login -> POST /edit': [800, 2000],
+  'POST /login -> POST /logout': [500, 1000],
+  'GET /browse -> POST /edit': [800, 2000],
+  'POST /edit -> GET /browse': [800, 2000],
+  'GET /browse -> POST /logout': [800, 1500],
+  'POST /edit -> POST /logout': [800, 1500],
+  'GET /profile -> POST /profile': [800, 2000],
+  'POST /profile -> GET /search': [1000, 3000],
+  'GET /search -> POST /logout': [800, 1500]
+};
+
 const CATEGORY_DELAY = {
   AUTH: [500, 1500],
   READ: [500, 3000],
   UPDATE: [500, 5000],
   COMMIT: [800, 5000],
   default: [300, 800]
+};
+
+// 遷移(前カテゴリ -> 次カテゴリ)ごとの遅延幅
+const CATEGORY_TRANSITION_DELAY = {
+  'AUTH -> READ': [800, 3000],
+  'AUTH -> UPDATE': [800, 2000],
+  'AUTH -> AUTH': [500, 1000],
+  'READ -> UPDATE': [800, 2000],
+  'READ -> READ': [1000, 300000],
+  'READ -> AUTH': [800, 1500],
+  'UPDATE -> READ': [800, 2000],
+  'UPDATE -> AUTH': [800, 1500],
+  'UPDATE -> UPDATE': [800, 5000]
 };
 
 const CATEGORY_MAP = [
@@ -114,14 +141,23 @@ function endpointToCategory(method, url) {
 }
 
 let mode = 2; // 1: category, 2: endpoint
-const humanDelay = (method = 'GET', endpoint = 'default') => {
+const humanDelay = (method = 'GET', endpoint = 'default', prev = null) => {
   if (mode === 1) {
     const cat = endpointToCategory(method, endpoint);
-    const [min, max] = CATEGORY_DELAY[cat] || CATEGORY_DELAY.default;
+    const prevCat = prev ? endpointToCategory(prev.method, prev.endpoint) : 'NONE';
+    const key = `${prevCat} -> ${cat}`;
+    const [min, max] =
+      CATEGORY_TRANSITION_DELAY[key] ||
+      CATEGORY_DELAY[cat] ||
+      CATEGORY_DELAY.default;
     return sleep(randInt(min, max));
   }
-  const key = `${method.toUpperCase()} ${endpoint}`;
-  const [min, max] = ENDPOINT_DELAY[key] || ENDPOINT_DELAY.default;
+  const prevKey = prev ? `${prev.method} ${prev.endpoint}` : 'NONE default';
+  const key = `${prevKey} -> ${method.toUpperCase()} ${endpoint}`;
+  const [min, max] =
+    ENDPOINT_TRANSITION_DELAY[key] ||
+    ENDPOINT_DELAY[`${method.toUpperCase()} ${endpoint}`] ||
+    ENDPOINT_DELAY.default;
   return sleep(randInt(min, max));
 };
 function parseArgs() {
@@ -174,7 +210,8 @@ function logRow(obj) {
 async function requestAndLog({ method, endpoint, data, token, userId, ip, label, abnormal_type }) {
   const headers = { 'X-Forwarded-For': ip, 'User-Agent': USER_AGENT, 'API-Version': API_VERSION };
   const prev = lastEndpoint.get(userId);
-  if (prev) headers.Referer = `http://localhost:3000${prev}`;
+  if (prev) headers.Referer = `http://localhost:3000${prev.endpoint}`;
+  if (prev) await humanDelay(method, endpoint, prev);
   if (token) headers.Authorization = `Bearer ${token}`;
   const start = Date.now();
   let res;
@@ -195,7 +232,7 @@ async function requestAndLog({ method, endpoint, data, token, userId, ip, label,
     referrer: headers.Referer || ''
   };
   logRow(log);
-  lastEndpoint.set(userId, endpoint);
+  lastEndpoint.set(userId, { method: method.toUpperCase(), endpoint });
   if (token) {
     if (!session) {
       sessions.set(token, { loginTime: start, actionCount: 1, lastAction: MAP[endpoint]?.use_case || endpoint });
@@ -220,11 +257,11 @@ async function invalidTokenSequence(userId) {
       'User-Agent': USER_AGENT,
       'API-Version': API_VERSION,
       'Referer': lastEndpoint.get(userId)
-        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        ? `http://localhost:3000${lastEndpoint.get(userId).endpoint}`
         : ''
     }
   });
-  lastEndpoint.set(userId, '/login');
+  lastEndpoint.set(userId, { method: 'POST', endpoint: '/login' });
   // 発行された正規トークンを記録
   registerToken(data.token, userId);
   const badToken = data.token.slice(0, -1) + 'x';
@@ -237,7 +274,6 @@ async function invalidTokenSequence(userId) {
     label: 'invalid_token',
     abnormal_type: 'invalid_token'
   });
-  await humanDelay('GET', '/browse');
 }
 
 // 2) JWTなしアクセス
@@ -253,7 +289,6 @@ async function noTokenSequence(userId = 'unknown') {
     label: 'no_token',
     abnormal_type: 'no_token'
   });
-  await humanDelay('POST', '/edit');
 }
 
 // 2b) 認証なしでプロフィール閲覧
@@ -268,7 +303,6 @@ async function unauthorizedProfileSequence(userId = 'unknown') {
     label: 'no_token',
     abnormal_type: 'no_token'
   });
-  await humanDelay('GET', '/profile');
 }
 
 // 3) 順序異常 (edit → login → logout)
@@ -284,7 +318,6 @@ async function reversedSequence(userId) {
     label: 'no_token',
     abnormal_type: 'no_token'
   });
-  await humanDelay('POST', '/edit');
 
   const token = await requestAndLog({
     method: 'post',
@@ -296,7 +329,6 @@ async function reversedSequence(userId) {
     label: 'normal'
   });
   registerToken(token, userId);
-  await humanDelay('POST', '/login');
   await requestAndLog({
     method: 'post',
     endpoint: '/logout',
@@ -307,7 +339,6 @@ async function reversedSequence(userId) {
     label: 'out_of_order',
     abnormal_type: 'out_of_order'
   });
-  await humanDelay('POST', '/logout');
 }
 
 // 3b) プロフィール更新を先に実行
@@ -323,7 +354,6 @@ async function profileBeforeLoginSequence(userId) {
     label: 'no_token',
     abnormal_type: 'no_token'
   });
-  await humanDelay('GET', '/profile');
 
   const token = await requestAndLog({
     method: 'post',
@@ -335,7 +365,6 @@ async function profileBeforeLoginSequence(userId) {
     label: 'normal'
   });
   registerToken(token, userId);
-  await humanDelay('POST', '/login');
   await requestAndLog({
     method: 'post',
     endpoint: '/logout',
@@ -346,7 +375,6 @@ async function profileBeforeLoginSequence(userId) {
     label: 'out_of_order',
     abnormal_type: 'out_of_order'
   });
-  await humanDelay('POST', '/logout');
 }
 
 // 4) 発行者と利用者が異なるトークン流用
@@ -367,7 +395,7 @@ async function tokenReuseSequence(nowId) {
         'Referer': ''
       }
     });
-    lastEndpoint.set(issuerId, '/login');
+    lastEndpoint.set(issuerId, { method: 'POST', endpoint: '/login' });
     token = data.token;
     registerToken(token, issuerId);
   } else {
@@ -384,7 +412,6 @@ async function tokenReuseSequence(nowId) {
     label: 'token_reuse',
     abnormal_type: 'token_reuse'
   });
-  await humanDelay('GET', '/browse');
 }
 
 // 5) ログアウト後に同一トークンを再利用
@@ -396,11 +423,11 @@ async function reuseAfterLogoutSequence(userId) {
       'User-Agent': USER_AGENT,
       'API-Version': API_VERSION,
       'Referer': lastEndpoint.get(userId)
-        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        ? `http://localhost:3000${lastEndpoint.get(userId).endpoint}`
         : ''
     }
   });
-  lastEndpoint.set(userId, '/login');
+  lastEndpoint.set(userId, { method: 'POST', endpoint: '/login' });
   const token = data.token;
   registerToken(token, userId);
   await requestAndLog({
@@ -422,7 +449,6 @@ async function reuseAfterLogoutSequence(userId) {
     label: 'reuse_after_logout',
     abnormal_type: 'reuse_after_logout'
   });
-  await humanDelay('GET', '/browse');
 }
 
 // 6) 有効期限切れトークンの使用
@@ -455,7 +481,6 @@ async function missingUserIdSequence(nowId = 'unknown') {
     label: 'missing_user_id',
     abnormal_type: 'missing_user_id'
   });
-  await humanDelay('POST', '/login');
 }
 
 // 8) 存在しないエンドポイントへのアクセス
@@ -466,10 +491,10 @@ async function invalidEndpointSequence(userId) {
     'User-Agent': USER_AGENT,
     'API-Version': API_VERSION,
     'Referer': lastEndpoint.get(userId)
-      ? `http://localhost:3000${lastEndpoint.get(userId)}`
+      ? `http://localhost:3000${lastEndpoint.get(userId).endpoint}`
       : ''
   } });
-  lastEndpoint.set(userId, '/login');
+  lastEndpoint.set(userId, { method: 'POST', endpoint: '/login' });
   const token = data.token;
   registerToken(token, userId);
   await requestAndLog({
@@ -492,11 +517,11 @@ async function ipSwitchSequence(userId) {
       'User-Agent': USER_AGENT,
       'API-Version': API_VERSION,
       'Referer': lastEndpoint.get(userId)
-        ? `http://localhost:3000${lastEndpoint.get(userId)}`
+        ? `http://localhost:3000${lastEndpoint.get(userId).endpoint}`
         : ''
     }
   });
-  lastEndpoint.set(userId, '/login');
+  lastEndpoint.set(userId, { method: 'POST', endpoint: '/login' });
   const token = data.token;
   registerToken(token, userId);
   const ip2 = randomIP();
@@ -538,7 +563,6 @@ async function ipSwitchSequence(userId) {
           abnormal_type: 'rapid_login'
         });
       }
-      await humanDelay('POST', '/login');
       await sleep(50);
     }
   }
@@ -561,7 +585,6 @@ async function complexSequence(userId) {
     label: 'normal'
   });
   registerToken(token, userId);
-  await humanDelay('POST', '/login');
   await requestAndLog({
     method: 'get',
     endpoint: '/browse',
@@ -570,7 +593,6 @@ async function complexSequence(userId) {
     ip,
     label: 'normal'
   });
-  await humanDelay('GET', '/browse');
 
   // ログアウト
   await requestAndLog({
@@ -582,7 +604,6 @@ async function complexSequence(userId) {
     ip,
     label: 'normal'
   });
-  await humanDelay('POST', '/logout');
 
   // ログアウト済みトークンで操作
   await requestAndLog({
@@ -595,7 +616,6 @@ async function complexSequence(userId) {
     label: 'reuse_after_logout',
     abnormal_type: 'reuse_after_logout'
   });
-  await humanDelay('POST', '/edit');
 
   // user_id を送らずログイン試行
   await requestAndLog({
@@ -608,7 +628,6 @@ async function complexSequence(userId) {
     label: 'missing_user_id',
     abnormal_type: 'missing_user_id'
   });
-  await humanDelay('POST', '/login');
 
   // 存在しないページへアクセス
   await requestAndLog({
@@ -620,7 +639,6 @@ async function complexSequence(userId) {
     label: 'invalid_endpoint',
     abnormal_type: 'invalid_endpoint'
   });
-  await humanDelay('GET', '/admin');
 }
 // 12) 3年以上の継続セッション
 async function staleSessionSequence(userId) {
@@ -638,7 +656,6 @@ async function staleSessionSequence(userId) {
     label: "stale_session",
     abnormal_type: "stale_session"
   });
-  await humanDelay('GET', '/browse');
 }
 
 // 13) 管理者アカウントの多重同時ログイン
@@ -646,11 +663,9 @@ async function adminMultiLoginSequence(userId = "admin01") {
   const ip1 = randomIP();
   const token1 = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip: ip1, label: "admin_multi_login" });
   registerToken(token1, userId);
-  await humanDelay('POST', '/login');
   const ip2 = randomIP();
   const token2 = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip: ip2, label: "admin_multi_login", abnormal_type: "admin_multi_login" });
   registerToken(token2, userId);
-  await humanDelay('POST', '/login');
 }
 
 // 14) 短時間で大量ページアクセス
@@ -658,7 +673,6 @@ async function rapidBrowseSequence(userId) {
   const ip = randomIP();
   const token = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip, label: "normal" });
   registerToken(token, userId);
-  await humanDelay('POST', '/login');
   for (let i=0; i<20; i++) {
     await requestAndLog({ method: "get", endpoint: "/browse", token, userId, ip, label: "rapid_browse", abnormal_type: "rapid_browse" });
     await sleep(50);
@@ -670,7 +684,6 @@ async function invalidParamSequence(userId) {
   const ip = randomIP();
   const token = await requestAndLog({ method: "post", endpoint: "/login", data: { user_id: userId }, token: null, userId, ip, label: "normal" });
   registerToken(token, userId);
-  await humanDelay('POST', '/login');
   for (let i=0; i<3; i++) {
     await requestAndLog({ method: "post", endpoint: "/edit", data: { id: -999999999*i }, token, userId, ip, label: "bad_param", abnormal_type: "bad_param" });
     await sleep(100);
